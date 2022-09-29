@@ -13,6 +13,9 @@ The extension was discussed on rails forum which can be seen here
 [proposal for postgres pipeline in active record](https://discuss.rubyonrails.org/t/proposal-adding-postgres-pipeline-support-in-activerecord/81427/2)
 some of the suggestions are being taken into consideration, while designing the extension
 
-
+### Setup
+* Install Ruby version > 3.0.0 using version managers
+* Install postgres `brew install postgresql`
+* Run `bundle install`
 
 
