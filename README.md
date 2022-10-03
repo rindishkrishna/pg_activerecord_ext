@@ -17,5 +17,8 @@ some of the suggestions are being taken into consideration, while designing the 
 * Install Ruby version > 3.0.0 using version managers
 * Install postgres `brew install postgresql`
 * Run `bundle install`
+* Start postgres locally `brew services start postgresql`
+* Create database with your username. `psql postgres` & then `create database <username>`
+* Run tests `bundle exec rspec`
 
 

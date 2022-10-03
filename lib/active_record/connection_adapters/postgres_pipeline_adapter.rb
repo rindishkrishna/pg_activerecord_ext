@@ -32,14 +32,16 @@ module ActiveRecord
 
       def initialize(connection, logger, connection_parameters, config)
         super(connection, logger, connection_parameters, config)
+        connection.enter_pipeline_mode
       end
 
       class << self
         def new_client(conn_params)
           pg_connect = PostgreSQLAdapter.new_client(conn_params)
-          pg_connect.enter_pipeline_mode
+          pg_connect
         end
       end
+
     end
   end
 end
