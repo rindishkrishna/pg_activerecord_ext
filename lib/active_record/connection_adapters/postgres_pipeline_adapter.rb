@@ -58,6 +58,31 @@ module ActiveRecord
         end
       end
 
+      def initialize_results
+        #Option 1 : A separate thread which keeps on checking results and initialize FutureResult objects
+        # while(true) do
+        #   if(@piped_results.length() > 1)
+        #      result = @connection.get_result()
+        #      if(!result.empty())
+        #        future_result << @piped_results.pop.result
+        #        future_result.assign(result)
+        #      end
+        #   end
+        # end
+
+
+        #Option 2
+        # while(TIMEOUT) do
+        #         #   if(@piped_results.length() > 1)
+        #         #      result = @connection.get_result()
+        #         #      if(!result.empty())
+        #         #        future_result << @piped_results.pop.result
+        #         #        future_result.assign(result)
+        #         #      end
+        #         #   end
+        #         # end
+      end
+
       def exec_query(sql, name = "SQL", binds = [], prepare: false, async: false) # :nodoc:
         execute_and_clear(sql, name, binds, prepare: prepare, async: async) do |result|
           if !result.is_a?(FutureResult)
