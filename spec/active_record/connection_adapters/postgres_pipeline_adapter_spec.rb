@@ -19,11 +19,13 @@ RSpec.describe 'ActiveRecord::ConnectionAdapters::PostgresPipelineAdapter' do
     expect(piped_results.try(:length)).to eq 1
   end
 
+  it 'should assign the results back in the same order, as it was called' do
+
+  end
+  
   it 'should return error if one of the query is incorrect' do
 
   end
 
-  it 'should assign the results back in the same order, as it was called' do
 
-  end
 end
