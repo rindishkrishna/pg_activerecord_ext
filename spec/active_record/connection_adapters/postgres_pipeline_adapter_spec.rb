@@ -61,7 +61,7 @@ RSpec.describe 'ActiveRecord::ConnectionAdapters::PostgresPipelineAdapter' do
     end
 
     it 'should load entities in same order as called' do
-      # Multiple load statements
+      assert_equal 1, 2
     end
 
     it 'should insert entity in pipeline mode' do

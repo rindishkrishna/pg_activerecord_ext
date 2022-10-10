@@ -45,6 +45,7 @@ module ActiveRecord
         log(sql, name, binds, type_casted_binds, async: async) do
           ActiveSupport::Dependencies.interlock.permit_concurrent_loads do
             if @connection.pipeline_status == PG::PQ_PIPELINE_ON
+              #If Pipeline mode return future result objects
               @connection.send_query_params(sql, type_casted_binds)
 
               future_result = FutureResult.new
@@ -69,18 +70,6 @@ module ActiveRecord
         #      end
         #   end
         # end
-
-
-        #Option 2
-        # while(TIMEOUT) do
-        #         #   if(@piped_results.length() > 1)
-        #         #      result = @connection.get_result()
-        #         #      if(!result.empty())
-        #         #        future_result << @piped_results.pop.result
-        #         #        future_result.assign(result)
-        #         #      end
-        #         #   end
-        #         # end
       end
 
       def exec_query(sql, name = "SQL", binds = [], prepare: false, async: false) # :nodoc:
