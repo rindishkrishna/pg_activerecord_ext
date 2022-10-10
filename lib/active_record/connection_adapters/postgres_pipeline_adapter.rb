@@ -65,7 +65,7 @@ module ActiveRecord
         #      result = @connection.get_result()
         #      if(!result.empty())
         #        future_result << @piped_results.pop.result
-        #        future_result.assign(result)
+        #        future_result.assign(build_ar_result(result))
         #      end
         #   end
         # end
@@ -86,22 +86,29 @@ module ActiveRecord
       def exec_query(sql, name = "SQL", binds = [], prepare: false, async: false) # :nodoc:
         execute_and_clear(sql, name, binds, prepare: prepare, async: async) do |result|
           if !result.is_a?(FutureResult)
-            types = {}
-            fields = result.fields
-            fields.each_with_index do |fname, i|
-              ftype = result.ftype i
-              fmod  = result.fmod i
-              case type = get_oid_type(ftype, fmod, fname)
-              when Type::Integer, Type::Float, OID::Decimal, Type::String, Type::DateTime, Type::Boolean
-                # skip if a column has already been type casted by pg decoders
-              else types[fname] = type
-              end
-            end
-            build_result(columns: fields, rows: result.values, column_types: types)
+            build_ar_result(result)
           else
             result
           end
         end
+      end
+
+      private
+
+      def build_ar_result(result)
+        types = {}
+        fields = result.fields
+        fields.each_with_index do |fname, i|
+          ftype = result.ftype i
+          fmod = result.fmod i
+          case type = get_oid_type(ftype, fmod, fname)
+          when Type::Integer, Type::Float, OID::Decimal, Type::String, Type::DateTime, Type::Boolean
+            # skip if a column has already been type casted by pg decoders
+          else
+            types[fname] = type
+          end
+        end
+        build_result(columns: fields, rows: result.values, column_types: types)
       end
     end
   end

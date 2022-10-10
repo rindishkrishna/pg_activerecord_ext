@@ -2,7 +2,7 @@
 
 module ActiveRecord
   class FutureResult # :nodoc:
-    def initialize()
+    def initialize
       @result = nil
       @event_buffer = nil
       @error = nil
@@ -10,6 +10,7 @@ module ActiveRecord
     end
 
     def result
+      # Wait till timeout until pending is false
     end
 
     def assign
