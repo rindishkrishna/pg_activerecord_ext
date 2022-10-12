@@ -48,7 +48,7 @@ module ActiveRecord
               #If Pipeline mode return future result objects
               @connection.send_query_params(sql, type_casted_binds)
 
-              future_result = FutureResult.new
+              future_result = FutureResult.new(self)
               @counter += 1
               @piped_results << { order: @counter, result: future_result }
               future_result
@@ -70,6 +70,16 @@ module ActiveRecord
         #      end
         #   end
         # end
+        @connection.pipeline_sync
+        loop do
+          result =  @connection.get_result
+          if result.try(:values) && !result.values.empty?
+            future_result = @piped_results.pop[:result]
+            future_result.assign(build_ar_result(result))
+          elsif result.try(:result_status) == PG::PGRES_PIPELINE_SYNC
+            break
+          end
+        end
       end
 
       def exec_query(sql, name = "SQL", binds = [], prepare: false, async: false) # :nodoc:

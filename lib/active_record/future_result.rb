@@ -2,7 +2,8 @@
 
 module ActiveRecord
   class FutureResult # :nodoc:
-    def initialize
+    def initialize(connection_adapter)
+      @connection_adapter = connection_adapter
       @result = nil
       @event_buffer = nil
       @error = nil
@@ -11,10 +12,15 @@ module ActiveRecord
 
     def result
       # Wait till timeout until pending is false
+      return @result unless @pending
+
+      @connection_adapter.initialize_results
+      @result
     end
 
-    def assign
+    def assign(result)
       @pending = false
+      @result =  result
     end
 
     def clear; end
