@@ -14,7 +14,7 @@ module ActiveRecord
       # Wait till timeout until pending is false
       return @result unless @pending
 
-      @connection_adapter.initialize_results
+      @connection_adapter.initialize_results(self)
       @result
     end
 

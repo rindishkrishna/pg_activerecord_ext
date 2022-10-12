@@ -59,7 +59,7 @@ module ActiveRecord
         end
       end
 
-      def initialize_results
+      def initialize_results(required_future_result)
         #Option 1 : A separate thread which keeps on checking results and initialize FutureResult objects
         # while(true) do
         #   if(@piped_results.length() > 1)
@@ -76,8 +76,11 @@ module ActiveRecord
           if result.try(:values) && !result.values.empty?
             future_result = @piped_results.pop[:result]
             future_result.assign(build_ar_result(result))
-          elsif result.try(:result_status) == PG::PGRES_PIPELINE_SYNC
-            break
+            break if required_future_result == future_result
+          else
+            if result.try(:result_status) == PG::PGRES_PIPELINE_SYNC && @piped_results.empty?
+              break
+            end
           end
         end
       end

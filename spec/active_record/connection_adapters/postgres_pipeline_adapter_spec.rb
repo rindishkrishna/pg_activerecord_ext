@@ -49,6 +49,14 @@ RSpec.describe 'ActiveRecord::ConnectionAdapters::PostgresPipelineAdapter' do
       expect(expect_1.result.rows.first.first).to eq result_1.rows.first.first
     end
 
+    it 'should only process results until the requested query' do
+      future_result_1 = @pipeline_connection.exec_query('select max(id) from postgresql_pipeline_test_table')
+      future_result_2 = @pipeline_connection.exec_query('select min(id) from postgresql_pipeline_test_table')
+      future_result_3 = @pipeline_connection.exec_query('select * from postgresql_pipeline_test_table')
+
+      expect {  future_result_2.result }.to change{  @pipeline_connection.instance_variable_get(:@piped_results).length }.from(3).to(1)
+    end
+
     it 'should be loaded correctly from ActiveRecord' do
       # Given
       connection = ActiveRecord::Base.postgresql_connection(min_messages: 'warning')
