@@ -2,16 +2,16 @@
 require 'spec_helper'
 require 'active_record'
 require 'active_record/connection_adapters/postgres_pipeline_adapter'
+require 'active_record/pipeline_relation'
 
 RSpec.describe 'ActiveRecord::ConnectionAdapters::PostgresPipelineAdapter' do
   before(:all) do
-    @pipeline_connection = ActiveRecord::Base.pipeline_postgresql_connection(min_messages: 'warning')
+    @pipeline_connection = ActiveRecord::Base.postgres_pipeline_connection(min_messages: 'warning')
     @connection = ActiveRecord::Base.postgresql_connection(min_messages: 'warning')
     @connection.exec_query('CREATE TABLE IF NOT EXISTS postgresql_pipeline_test_table (
       id SERIAL PRIMARY KEY,
       number integer
       );')
-
     @connection.exec_insert('insert into postgresql_pipeline_test_table (number) VALUES (1)', nil, [], 'id', 'postgresql_pipeline_test_table_id_seq')
     @connection.exec_insert('insert into postgresql_pipeline_test_table (number) VALUES (1)', nil, [], 'id', 'postgresql_pipeline_test_table_id_seq')
   end
@@ -55,21 +55,6 @@ RSpec.describe 'ActiveRecord::ConnectionAdapters::PostgresPipelineAdapter' do
       future_result_3 = @pipeline_connection.exec_query('select * from postgresql_pipeline_test_table')
 
       expect {  future_result_2.result }.to change{  @pipeline_connection.instance_variable_get(:@piped_results).length }.from(3).to(1)
-    end
-
-    it 'should be loaded correctly from ActiveRecord' do
-      # Given
-      connection = ActiveRecord::Base.postgresql_connection(min_messages: 'warning')
-
-      result = connection.exec_insert('insert into postgresql_pipeline_test_table (number) VALUES (1)', nil, [], 'id', 'postgresql_pipeline_test_table_id_seq')
-
-      # Dummy User which is configured to use pipeline connection
-      # Invocation
-      # user = User.load()
-      # Assertions
-      # expect(user).to eq result.rows.first.first
-
-      assert_equal 1, 2
     end
 
     it 'should load entities in same order as called' do
