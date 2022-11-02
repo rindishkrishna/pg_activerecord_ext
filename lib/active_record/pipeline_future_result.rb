@@ -15,6 +15,7 @@ module ActiveRecord
       return @result unless @pending
 
       @connection_adapter.initialize_results(self)
+      @pending = false
       @result
     end
 

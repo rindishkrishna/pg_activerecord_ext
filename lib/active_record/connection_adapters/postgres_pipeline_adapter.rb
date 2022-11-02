@@ -34,16 +34,16 @@ module ActiveRecord
         @counter = 0
       end
 
-      def exec_no_cache(sql, name, binds, async: false)
+      def exec_no_cache(sql, name, binds)
         materialize_transactions
         mark_transaction_written_if_write(sql)
 
-        # make sure we carry over any changes to ActiveRecord.default_timezone that have been
+        # make sure we carry over any changes to ActiveRecord::Base.default_timezone that have been
         # made since we established the connection
         update_typemap_for_default_timezone
 
         type_casted_binds = type_casted_binds(binds)
-        log(sql, name, binds, type_casted_binds, async: async) do
+        log(sql, name, binds, type_casted_binds) do
           ActiveSupport::Dependencies.interlock.permit_concurrent_loads do
             if @connection.pipeline_status == PG::PQ_PIPELINE_ON
               #If Pipeline mode return future result objects
@@ -90,7 +90,7 @@ module ActiveRecord
         end
       end
 
-      def query(sql, name = nil) # :nodoc:
+      def query(sql, name = nil) #:nodoc:
         materialize_transactions
         mark_transaction_written_if_write(sql)
 
@@ -111,14 +111,14 @@ module ActiveRecord
         end
       end
 
-      def exec_cache(sql, name, binds, async: false)
+      def exec_cache(sql, name, binds)
         materialize_transactions
         mark_transaction_written_if_write(sql)
         update_typemap_for_default_timezone
         stmt_key = prepare_statement(sql, binds)
         type_casted_binds = type_casted_binds(binds)
 
-        log(sql, name, binds, type_casted_binds, stmt_key, async: async) do
+        log(sql, name, binds, type_casted_binds, stmt_key) do
           ActiveSupport::Dependencies.interlock.permit_concurrent_loads do
             if @connection.pipeline_status == PG::PQ_PIPELINE_ON
               @connection.send_query_params(sql, type_casted_binds)
@@ -182,8 +182,8 @@ module ActiveRecord
         end
       end
 
-      def exec_query(sql, name = "SQL", binds = [], prepare: false, async: false) # :nodoc:
-        execute_and_clear(sql, name, binds, prepare: prepare, async: async) do |result|
+      def exec_query(sql, name = "SQL", binds = [], prepare: false)
+        execute_and_clear(sql, name, binds, prepare: prepare) do |result|
           if !result.is_a?(FutureResult)
             build_ar_result(result)
           else
@@ -203,8 +203,7 @@ module ActiveRecord
           case type = get_oid_type(ftype, fmod, fname)
           when Type::Integer, Type::Float, OID::Decimal, Type::String, Type::DateTime, Type::Boolean
             # skip if a column has already been type casted by pg decoders
-          else
-            types[fname] = type
+          else types[fname] = type
           end
         end
         build_result(columns: fields, rows: result.values, column_types: types)

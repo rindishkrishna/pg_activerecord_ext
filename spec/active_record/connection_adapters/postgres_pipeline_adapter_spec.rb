@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 require 'spec_helper'
-require 'active_record'
-require 'active_record/connection_adapters/postgres_pipeline_adapter'
-require 'active_record/pipeline_relation'
+require 'pg_activerecord_ext'
 
 RSpec.describe 'ActiveRecord::ConnectionAdapters::PostgresPipelineAdapter' do
   before(:all) do

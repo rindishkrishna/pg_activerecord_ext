@@ -5,7 +5,7 @@ source 'http://rubygems.org'
 gemspec
 
 group :test do
-  gem 'activerecord', '~> 7.0', '>= 7.0.4'
+  gem 'rails', '~> 6.1.7'
   gem 'codecov', '~> 0.2'
   gem 'dotenv', '~> 2.5'
   gem 'rake', '~> 13.0'
