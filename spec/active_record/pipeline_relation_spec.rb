@@ -16,7 +16,9 @@ RSpec.describe 'ActiveRecord::Relation' do
     @connection = ActiveRecord::Base.postgresql_connection(min_messages: 'warning')
     @connection.drop_table(:users, if_exists: true)
     @connection.drop_table(:authors, if_exists: true)
-    @connection.create_table(:users, id: :string, limit: 42, force: true)
+    @connection.create_table(:users, id: :string, limit: 42, force: true) do |t|
+      t.column :description, :string
+    end
     @connection.create_table :authors do |t|
       t.column :user_id, :string
     end
@@ -31,7 +33,7 @@ RSpec.describe 'ActiveRecord::Relation' do
   it 'should fetch results for where clause in pipeline mode when load_in_pipeline is called' do
     ActiveRecord::Base.establish_connection("adapter" => "postgres_pipeline")
     ActiveSupport::Notifications.subscribed( @callback, "sql.active_record") do
-      users =   User.where("id is not null").load_in_pipeline
+      users = User.where("id is not null").load_in_pipeline
       expect(users).to eq([@user_1, @user_2])
     end
   end
@@ -39,7 +41,7 @@ RSpec.describe 'ActiveRecord::Relation' do
   it 'should fetch results for where clause in pipeline mode even when load_in_pipeline is not explicity called' do
     ActiveRecord::Base.establish_connection("adapter" => "postgres_pipeline")
     ActiveSupport::Notifications.subscribed( @callback, "sql.active_record") do
-      users =   User.where("id is not null")
+      users = User.where("id is not null")
       expect(users).to eq([@user_1, @user_2])
     end
 

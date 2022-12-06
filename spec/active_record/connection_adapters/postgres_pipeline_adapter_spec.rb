@@ -55,8 +55,9 @@ RSpec.describe 'ActiveRecord::ConnectionAdapters::PostgresPipelineAdapter' do
       expect {  future_result_2.result }.to change{  @pipeline_connection.instance_variable_get(:@piped_results).length }.from(3).to(1)
     end
 
-    it 'should load entities in same order as called' do
-      assert_equal 1, 2
+    it 'should be able to execute multiple SQL statements' do
+      pg_result = @pipeline_connection.execute("select max(id) from postgresql_pipeline_test_table; SHOW TIME ZONE;")
+      expect(pg_result.try(:result_status)).to eq(PG::PGRES_TUPLES_OK)
     end
 
     it 'should insert entity in pipeline mode' do

@@ -2,6 +2,7 @@
 
 require 'active_record/connection_adapters/postgresql_adapter'
 require 'active_record/pipeline_future_result'
+require "active_record/connection_adapters/postgres_pipeline/pipeline_database_statements"
 
 module ActiveRecord
   module ConnectionHandling # :nodoc:
@@ -24,13 +25,15 @@ module ActiveRecord
 
     # Establishes a connection to the database of postgres with pipeline support
     class PostgresPipelineAdapter < ActiveRecord::ConnectionAdapters::PostgreSQLAdapter
-      ADAPTER_NAME = 'PostgresSQLWithPipeline'
+      ADAPTER_NAME = 'PostgresPipeline'
+
+      include PostgresPipeline::DatabaseStatements
 
       def initialize(connection, logger, conn_params, config)
         super(connection, logger, conn_params, config)
         connection.enter_pipeline_mode
         @is_pipeline_mode = true
-        @piped_results = Queue.new
+        @piped_results = []
         @counter = 0
       end
 
@@ -48,10 +51,9 @@ module ActiveRecord
             if @connection.pipeline_status == PG::PQ_PIPELINE_ON
               #If Pipeline mode return future result objects
               @connection.send_query_params(sql, type_casted_binds)
-
               future_result = FutureResult.new(self)
               @counter += 1
-              @piped_results << { order: @counter, result: future_result }
+              @piped_results << future_result
               future_result
             else
               @connection.exec_params(sql, type_casted_binds)
@@ -90,27 +92,6 @@ module ActiveRecord
         end
       end
 
-      def query(sql, name = nil) #:nodoc:
-        materialize_transactions
-        mark_transaction_written_if_write(sql)
-
-        log(sql, name) do
-          ActiveSupport::Dependencies.interlock.permit_concurrent_loads do
-            if @connection.pipeline_status == PG::PQ_PIPELINE_ON
-              initialize_results(nil)
-              @connection.send_query(sql)
-              #Refactor needed
-              @connection.send_flush_request
-              result = @connection.get_result
-              @connection.get_result
-              result.map_types!(@type_map_for_results).values
-            else
-              @connection.async_exec(sql).map_types!(@type_map_for_results).values
-            end
-          end
-        end
-      end
-
       def exec_cache(sql, name, binds)
         materialize_transactions
         mark_transaction_written_if_write(sql)
@@ -124,7 +105,7 @@ module ActiveRecord
               @connection.send_query_params(sql, type_casted_binds)
               future_result = FutureResult.new(self)
               @counter += 1
-              @piped_results << { order: @counter, result: future_result }
+              @piped_results << future_result
               future_result
             else
               @connection.exec_prepared(stmt_key, type_casted_binds)
@@ -170,16 +151,42 @@ module ActiveRecord
         @connection.pipeline_sync
         loop do
           result =  @connection.get_result
-          if result.try(:result_status) == PG::PGRES_TUPLES_OK
-            future_result = @piped_results.pop[:result]
-            future_result.assign(build_ar_result(result))
+          if [PG::PGRES_TUPLES_OK , PG::PGRES_PIPELINE_ABORTED , PG::PGRES_COMMAND_OK , PG::PGRES_FATAL_ERROR].include?(result.try(:result_status))
+            future_result = @piped_results.shift
+            #  result = (future_result.format == "ar_result") ? build_ar_result(result) : result
+            future_result.assign(result)
             break if required_future_result == future_result && !@piped_results.empty?
-          else
-            if result.try(:result_status) == PG::PGRES_PIPELINE_SYNC && @piped_results.empty?
-              break
-            end
+          elsif result.try(:result_status) == PG::PGRES_PIPELINE_SYNC && @piped_results.empty?
+            break
           end
         end
+      end
+
+      def execute_and_clear(sql, name, binds, prepare: false, process_later: false , &block)
+        if preventing_writes? && write_query?(sql)
+          raise ActiveRecord::ReadOnlyError, "Write query attempted while in readonly mode: #{sql}"
+        end
+
+        if !prepare || without_prepared_statement?(binds)
+          result = exec_no_cache(sql, name, binds)
+        else
+          result = exec_cache(sql, name, binds)
+        end
+        # if @connection.pipeline_status == PG::PQ_PIPELINE_ON
+        #   result
+        # else
+        if @connection.pipeline_status == PG::PQ_PIPELINE_ON
+          result.block = block
+          return result
+        else
+          begin
+            ret = yield result
+          ensure
+            result.clear
+          end
+          ret
+        end
+        ret
       end
 
       def exec_query(sql, name = "SQL", binds = [], prepare: false)
