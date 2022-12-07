@@ -27,7 +27,8 @@ class UpdateAllTest < ActiveRecord::TestCase
 
   def test_update_all_with_scope
     tag = Tag.first
-    Post.tagged_with(tag.id).update_all(title: "rofl")
+    update_response = Post.tagged_with(tag.id).update_all(title: "rofl")
+    # update_response.result
     posts = Post.tagged_with(tag.id).all.to_a
     assert_operator posts.length, :>, 0
     posts.each { |post| assert_equal "rofl", post.title }
@@ -70,7 +71,7 @@ class UpdateAllTest < ActiveRecord::TestCase
     assert_equal true, pets.exists?
     assert_equal pets.count, pets.update_all(name: "Bob")
   end
-
+  #
   def test_update_all_with_joins_and_limit_and_order
     comments = Comment.joins(:post).where("posts.id" => posts(:welcome).id).order("comments.id").limit(1)
     assert_equal 1, comments.count

@@ -3,6 +3,7 @@
 require 'active_record/connection_adapters/postgresql_adapter'
 require 'active_record/pipeline_future_result'
 require "active_record/connection_adapters/postgres_pipeline/pipeline_database_statements"
+require "active_record/connection_adapters/postgres_pipeline/referential_integrity"
 
 module ActiveRecord
   module ConnectionHandling # :nodoc:
@@ -28,6 +29,7 @@ module ActiveRecord
       ADAPTER_NAME = 'PostgresPipeline'
 
       include PostgresPipeline::DatabaseStatements
+      include PostgresPipeline::ReferentialIntegrity
 
       def initialize(connection, logger, conn_params, config)
         super(connection, logger, conn_params, config)
@@ -35,6 +37,10 @@ module ActiveRecord
         @is_pipeline_mode = true
         @piped_results = []
         @counter = 0
+      end
+
+      def is_pipeline_mode
+        @connection.pipeline_status != PG::PQ_PIPELINE_OFF
       end
 
       def exec_no_cache(sql, name, binds)
@@ -48,7 +54,7 @@ module ActiveRecord
         type_casted_binds = type_casted_binds(binds)
         log(sql, name, binds, type_casted_binds) do
           ActiveSupport::Dependencies.interlock.permit_concurrent_loads do
-            if @connection.pipeline_status == PG::PQ_PIPELINE_ON
+            if is_pipeline_mode
               #If Pipeline mode return future result objects
               @connection.send_query_params(sql, type_casted_binds)
               future_result = FutureResult.new(self)
@@ -69,12 +75,11 @@ module ActiveRecord
           unless @statements.key? sql_key
             nextkey = @statements.next_key
             begin
-              if @connection.pipeline_status == PG::PQ_PIPELINE_ON
+              if is_pipeline_mode
                 @connection.send_prepare nextkey, sql
                 #Refactor needed
-                @connection.send_flush_request
-                @connection.get_result.result_status
-                @connection.get_result
+                @connection.pipeline_sync
+                get_pipelined_result
               else
                 @connection.prepare nextkey, sql
               end
@@ -82,7 +87,7 @@ module ActiveRecord
               raise translate_exception_class(e, sql, binds)
             end
             # Clear the queue
-            unless @connection.pipeline_status == PG::PQ_PIPELINE_ON
+            unless is_pipeline_mode
               @connection.get_last_result
             end
 
@@ -101,7 +106,7 @@ module ActiveRecord
 
         log(sql, name, binds, type_casted_binds, stmt_key) do
           ActiveSupport::Dependencies.interlock.permit_concurrent_loads do
-            if @connection.pipeline_status == PG::PQ_PIPELINE_ON
+            if is_pipeline_mode
               @connection.send_query_params(sql, type_casted_binds)
               future_result = FutureResult.new(self)
               @counter += 1
@@ -151,12 +156,12 @@ module ActiveRecord
         @connection.pipeline_sync
         loop do
           result =  @connection.get_result
-          if [PG::PGRES_TUPLES_OK , PG::PGRES_PIPELINE_ABORTED , PG::PGRES_COMMAND_OK , PG::PGRES_FATAL_ERROR].include?(result.try(:result_status))
+          if response_received(result)
             future_result = @piped_results.shift
             #  result = (future_result.format == "ar_result") ? build_ar_result(result) : result
             future_result.assign(result)
             break if required_future_result == future_result && !@piped_results.empty?
-          elsif result.try(:result_status) == PG::PGRES_PIPELINE_SYNC && @piped_results.empty?
+          elsif pipeline_in_sync?(result) && @piped_results.empty?
             break
           end
         end
@@ -175,7 +180,7 @@ module ActiveRecord
         # if @connection.pipeline_status == PG::PQ_PIPELINE_ON
         #   result
         # else
-        if @connection.pipeline_status == PG::PQ_PIPELINE_ON
+        if is_pipeline_mode
           result.block = block
           return result
         else
@@ -201,6 +206,14 @@ module ActiveRecord
 
       private
 
+      def pipeline_in_sync?(result)
+        result.try(:result_status) == PG::PGRES_PIPELINE_SYNC
+      end
+
+      def response_received(result)
+        [PG::PGRES_TUPLES_OK, PG::PGRES_PIPELINE_ABORTED, PG::PGRES_COMMAND_OK, PG::PGRES_FATAL_ERROR].include?(result.try(:result_status))
+      end
+
       def build_ar_result(result)
         types = {}
         fields = result.fields
@@ -214,6 +227,18 @@ module ActiveRecord
           end
         end
         build_result(columns: fields, rows: result.values, column_types: types)
+      end
+
+      def get_pipelined_result
+        result = nil
+        loop do
+          interim_result = @connection.get_result
+          if response_received(interim_result)
+            result = interim_result
+          end
+          break if pipeline_in_sync?(interim_result)
+        end
+        result
       end
     end
   end

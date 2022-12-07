@@ -2,6 +2,13 @@ module ActiveRecord
   module ConnectionAdapters
     module PostgresPipeline
       module DatabaseStatements
+
+        def execute_batch(statements, name = nil)
+          statements.each do |statement|
+            execute(statement, name)
+          end
+        end
+
         # Executes an SQL statement, returning a PG::Result object on success
         # or raising a PG::Error exception otherwise.
         # Note: the PG::Result object is manually memory managed; if you don't
@@ -16,22 +23,13 @@ module ActiveRecord
 
           log(sql, name) do
             ActiveSupport::Dependencies.interlock.permit_concurrent_loads do
-              if @connection.pipeline_status == PG::PQ_PIPELINE_ON
+              if is_pipeline_mode
                 # Refactor needed
                 initialize_results(nil)
                 #                sql = sql.strip.squish
-                sql.split(';').each do |query|
-                  @connection.send_query_params(query, [])
-                end
+                @connection.send_query_params(sql, [])
                 @connection.pipeline_sync
-                result = nil
-                sql.split(';').each do
-                  result = @connection.get_result
-                  @connection.get_result
-                end
-                # When the results of all the queries in the pipeline have been returned, get_result returns a result containing the status value PGRES_PIPELINE_SYNC
-                @connection.get_result
-                result
+                get_pipelined_result
               else
                 @connection.async_exec(sql)
               end
@@ -45,13 +43,12 @@ module ActiveRecord
 
           log(sql, name) do
             ActiveSupport::Dependencies.interlock.permit_concurrent_loads do
-              if @connection.pipeline_status == PG::PQ_PIPELINE_ON
+              if is_pipeline_mode
                 initialize_results(nil)
                 @connection.send_query_params(sql, [])
                 #Refactor needed
-                @connection.send_flush_request
-                result = @connection.get_result
-                @connection.get_result
+                @connection.pipeline_sync
+                result = get_pipelined_result
                 result.map_types!(@type_map_for_results).values
               else
                 @connection.async_exec(sql).map_types!(@type_map_for_results).values
@@ -66,7 +63,6 @@ module ActiveRecord
           end
         end
         alias :exec_update :exec_delete
-
 
       end
     end
