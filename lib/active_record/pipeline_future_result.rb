@@ -1,5 +1,4 @@
 # frozen_string_literal: true
-
 module ActiveRecord
   class FutureResult # :nodoc:
     attr_accessor :block
@@ -17,14 +16,13 @@ module ActiveRecord
       return @result unless @pending
 
       @connection_adapter.initialize_results(self)
-      @result = @block.call(@result) if @block
-      @pending = false
       @result
     end
 
     def assign(result)
-      #      @pending = false
       @result = result
+      @result = @block.call(result) if @block
+      @pending = false
     end
 
     def ==(other)

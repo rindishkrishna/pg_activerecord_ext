@@ -27,8 +27,7 @@ class UpdateAllTest < ActiveRecord::TestCase
 
   def test_update_all_with_scope
     tag = Tag.first
-    update_response = Post.tagged_with(tag.id).update_all(title: "rofl")
-    update_response.result
+    Post.tagged_with(tag.id).update_all(title: "rofl")
     posts = Post.tagged_with(tag.id).all.to_a
     assert_operator posts.length, :>, 0
     posts.each { |post| assert_equal "rofl", post.title }
