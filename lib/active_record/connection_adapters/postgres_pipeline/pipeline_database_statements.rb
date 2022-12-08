@@ -24,12 +24,7 @@ module ActiveRecord
           log(sql, name) do
             ActiveSupport::Dependencies.interlock.permit_concurrent_loads do
               if is_pipeline_mode?
-                # Refactor needed
-                initialize_results(nil)
-                #                sql = sql.strip.squish
-                @connection.send_query_params(sql, [])
-                @connection.pipeline_sync
-                get_pipelined_result
+                flush_pipeline_and_get_sync_result { @connection.send_query_params(sql, []) }
               else
                 @connection.async_exec(sql)
               end
@@ -44,11 +39,7 @@ module ActiveRecord
           log(sql, name) do
             ActiveSupport::Dependencies.interlock.permit_concurrent_loads do
               if is_pipeline_mode?
-                initialize_results(nil)
-                @connection.send_query_params(sql, [])
-                #Refactor needed
-                @connection.pipeline_sync
-                result = get_pipelined_result
+                result = flush_pipeline_and_get_sync_result { @connection.send_query_params(sql, []) }
                 result.map_types!(@type_map_for_results).values
               else
                 @connection.async_exec(sql).map_types!(@type_map_for_results).values

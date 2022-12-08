@@ -4,7 +4,6 @@ require 'active_record/connection_adapters/postgresql_adapter'
 require 'active_record/pipeline_future_result'
 require "active_record/connection_adapters/postgres_pipeline/pipeline_database_statements"
 require "active_record/connection_adapters/postgres_pipeline/referential_integrity"
-
 module ActiveRecord
   module ConnectionHandling # :nodoc:
     # Establishes a connection to the database that's used by all Active Record objects
@@ -76,10 +75,7 @@ module ActiveRecord
             nextkey = @statements.next_key
             begin
               if is_pipeline_mode?
-                @connection.send_prepare nextkey, sql
-                #Refactor needed
-                @connection.pipeline_sync
-                get_pipelined_result
+                flush_pipeline_and_get_sync_result { @connection.send_prepare nextkey, sql }
               else
                 @connection.prepare nextkey, sql
               end
@@ -139,16 +135,6 @@ module ActiveRecord
       end
 
       def initialize_results(required_future_result)
-        #Option 1 : A separate thread which keeps on checking results and initialize FutureResult objects
-        # while(true) do
-        #   if(@piped_results.length() > 1)
-        #      result = @connection.get_result()
-        #      if(!result.empty())
-        #        future_result << @piped_results.pop.result
-        #        future_result.assign(build_ar_result(result))
-        #      end
-        #   end
-        # end
         @connection.pipeline_sync
         loop do
           result =  @connection.get_result
@@ -201,6 +187,13 @@ module ActiveRecord
       end
 
       private
+
+      def flush_pipeline_and_get_sync_result
+        initialize_results(nil)
+        yield
+        @connection.pipeline_sync
+        get_pipelined_result
+      end
 
       def pipeline_in_sync?(result)
         result.try(:result_status) == PG::PGRES_PIPELINE_SYNC
