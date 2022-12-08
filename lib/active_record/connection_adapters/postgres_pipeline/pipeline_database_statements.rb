@@ -23,7 +23,7 @@ module ActiveRecord
 
           log(sql, name) do
             ActiveSupport::Dependencies.interlock.permit_concurrent_loads do
-              if is_pipeline_mode
+              if is_pipeline_mode?
                 # Refactor needed
                 initialize_results(nil)
                 #                sql = sql.strip.squish
@@ -43,7 +43,7 @@ module ActiveRecord
 
           log(sql, name) do
             ActiveSupport::Dependencies.interlock.permit_concurrent_loads do
-              if is_pipeline_mode
+              if is_pipeline_mode?
                 initialize_results(nil)
                 @connection.send_query_params(sql, [])
                 #Refactor needed

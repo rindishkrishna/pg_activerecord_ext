@@ -27,7 +27,7 @@ module ActiveRecord
     end
 
     def load_in_pipeline
-      return load if !connection.pipeline_enabled?
+      return load if !connection.is_pipeline_mode?
       unless loaded?
 
         result = exec_main_query

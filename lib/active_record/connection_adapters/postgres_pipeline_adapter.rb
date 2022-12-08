@@ -39,7 +39,7 @@ module ActiveRecord
         @counter = 0
       end
 
-      def is_pipeline_mode
+      def is_pipeline_mode?
         @connection.pipeline_status != PG::PQ_PIPELINE_OFF
       end
 
@@ -54,7 +54,7 @@ module ActiveRecord
         type_casted_binds = type_casted_binds(binds)
         log(sql, name, binds, type_casted_binds) do
           ActiveSupport::Dependencies.interlock.permit_concurrent_loads do
-            if is_pipeline_mode
+            if is_pipeline_mode?
               #If Pipeline mode return future result objects
               @connection.send_query_params(sql, type_casted_binds)
               future_result = FutureResult.new(self)
@@ -75,7 +75,7 @@ module ActiveRecord
           unless @statements.key? sql_key
             nextkey = @statements.next_key
             begin
-              if is_pipeline_mode
+              if is_pipeline_mode?
                 @connection.send_prepare nextkey, sql
                 #Refactor needed
                 @connection.pipeline_sync
@@ -87,7 +87,7 @@ module ActiveRecord
               raise translate_exception_class(e, sql, binds)
             end
             # Clear the queue
-            unless is_pipeline_mode
+            unless is_pipeline_mode?
               @connection.get_last_result
             end
 
@@ -106,7 +106,7 @@ module ActiveRecord
 
         log(sql, name, binds, type_casted_binds, stmt_key) do
           ActiveSupport::Dependencies.interlock.permit_concurrent_loads do
-            if is_pipeline_mode
+            if is_pipeline_mode?
               @connection.send_query_params(sql, type_casted_binds)
               future_result = FutureResult.new(self)
               @counter += 1
@@ -136,10 +136,6 @@ module ActiveRecord
       def active?
         # Need to implement
         true
-      end
-
-      def pipeline_enabled?
-        @connection.pipeline_status == PG::PQ_PIPELINE_ON
       end
 
       def initialize_results(required_future_result)
@@ -180,7 +176,7 @@ module ActiveRecord
         # if @connection.pipeline_status == PG::PQ_PIPELINE_ON
         #   result
         # else
-        if is_pipeline_mode
+        if is_pipeline_mode?
           result.block = block
           return result
         else
