@@ -2,6 +2,18 @@
 module ActiveRecord
   class FutureResult # :nodoc:
     attr_accessor :block
+
+    KLASSES = [ ActiveRecord::Result, Array , Integer]
+
+    wrapping_methods = (KLASSES.inject([]) { |result, klass| result + klass.instance_methods(false) } + [:dup] - [:==]).uniq
+
+    wrapping_methods.each do |method|
+      define_method(method) do |*args, &block|
+        result if @pending
+        @result.send(method, *args, &block)
+      end
+    end
+
     def initialize(connection_adapter)
       @connection_adapter = connection_adapter
       @result = nil
@@ -40,21 +52,5 @@ module ActiveRecord
       super
     end
 
-    # def ==(other)
-    #   result if @pending
-    #   @result == other
-    # end
-
-
-    private
-    def respond_to_missing?(name, include_private = false)
-      result unless @result
-      @result.respond_to?(name, include_private)
-    end
-
-    def method_missing(method, *args, &block)
-      result if @pending
-      @result.send(method, *args, &block)
-    end
   end
 end
