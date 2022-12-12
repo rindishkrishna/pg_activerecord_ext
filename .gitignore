@@ -18,3 +18,7 @@ pkg/
 /yarn-error.log
 /test-reports/
 .idea/
+.DS_Store
+.byebug_history
+coverage/
+spec/.DS_Store

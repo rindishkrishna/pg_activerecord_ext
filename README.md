@@ -22,3 +22,7 @@ some of the suggestions are being taken into consideration, while designing the 
 * Run tests `bundle exec rspec`
 
 
+### Running ActiveRecord Test cases
+
+* Run `rake db:postgresql:build` to create databases
+* Run `bundle exec rake test` to run  activerecord test suite

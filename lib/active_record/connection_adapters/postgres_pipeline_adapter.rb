@@ -42,6 +42,17 @@ module ActiveRecord
         @connection.pipeline_status != PG::PQ_PIPELINE_OFF
       end
 
+
+      def case_insensitive_comparison(attribute, value) # :nodoc:
+        column = column_for_attribute(attribute)
+
+        if can_perform_case_insensitive_comparison_for?(column).result
+          attribute.lower.eq(attribute.relation.lower(value))
+        else
+          attribute.eq(value)
+        end
+      end
+
       def exec_no_cache(sql, name, binds)
         materialize_transactions
         mark_transaction_written_if_write(sql)
@@ -225,7 +236,7 @@ module ActiveRecord
           if response_received(interim_result)
             result = interim_result
           end
-          break if pipeline_in_sync?(interim_result)
+          break if pipeline_in_sync?(interim_result) && result
         end
         result
       end
