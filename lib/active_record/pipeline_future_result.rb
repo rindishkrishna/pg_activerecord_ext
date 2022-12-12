@@ -45,6 +45,28 @@ module ActiveRecord
         @result == other
       end
     end
+    def clear; end
 
+    def to_s
+      result if @pending
+      super
+    end
+
+    # def ==(other)
+    #   result if @pending
+    #   @result == other
+    # end
+
+
+    private
+    def respond_to_missing?(name, include_private = false)
+      result unless @result
+      @result.respond_to?(name, include_private)
+    end
+
+    def method_missing(method, *args, &block)
+      result if @pending
+      @result.send(method, *args, &block)
+    end
   end
 end
