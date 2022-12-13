@@ -140,15 +140,24 @@ module ActiveRecord
         end
       end
 
+      # def active?
+      #   # Need to implement
+      #   true
+      # end
+
       def active?
-        # Need to implement
+        @lock.synchronize do
+          flush_pipeline_and_get_sync_result { @connection.send_query_params "SELECT 1" , [] }
+        end
         true
+      rescue PG::Error
+        false
       end
 
       def initialize_results(required_future_result)
         @connection.pipeline_sync
         loop do
-          result =  @connection.get_result
+          result = @connection.get_result
           if response_received(result)
             future_result = @piped_results.shift
             #  result = (future_result.format == "ar_result") ? build_ar_result(result) : result
@@ -197,7 +206,25 @@ module ActiveRecord
         end
       end
 
-      private
+      def build_statement_pool
+        StatementPool.new(@connection, self.class.type_cast_config_to_integer(@config[:statement_limit]), self)
+      end
+
+      class StatementPool < ConnectionAdapters::PostgreSQLAdapter::StatementPool # :nodoc:
+        def initialize(connection, max, adapter)
+          super(connection, max)
+          @connection = connection
+          @counter = 0
+          @adapter = adapter
+        end
+
+        private
+        def dealloc(key)
+          @adapter.flush_pipeline_and_get_sync_result { @connection.send_query_params "DEALLOCATE #{key}", [] } if connection_active?
+          # @connection.query "DEALLOCATE #{key}"
+        rescue PG::Error
+        end
+      end
 
       def flush_pipeline_and_get_sync_result
         initialize_results(nil)
@@ -206,6 +233,7 @@ module ActiveRecord
         get_pipelined_result
       end
 
+      private
       def pipeline_in_sync?(result)
         result.try(:result_status) == PG::PGRES_PIPELINE_SYNC
       end

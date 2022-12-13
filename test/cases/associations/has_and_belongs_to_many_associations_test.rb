@@ -837,18 +837,18 @@ class HasAndBelongsToManyAssociationsTest < ActiveRecord::TestCase
   end
 
   def test_caching_of_columns
-    # david = Developer.find(1)
-    # # clear cache possibly created by other tests
-    # david.projects.reset_column_information
-    #
-    # assert_queries(:any) { david.projects.columns }
-    # assert_no_queries { david.projects.columns }
-    #
-    # ## and again to verify that reset_column_information clears the cache correctly
-    # david.projects.reset_column_information
-    #
-    # assert_queries(:any) { david.projects.columns }
-    # assert_no_queries { david.projects.columns }
+    david = Developer.find(1)
+    # clear cache possibly created by other tests
+    david.projects.reset_column_information
+
+    assert_queries(:any) { david.projects.columns }
+    assert_no_queries { david.projects.columns }
+
+    ## and again to verify that reset_column_information clears the cache correctly
+    david.projects.reset_column_information
+
+    assert_queries(:any) { david.projects.columns }
+    assert_no_queries { david.projects.columns }
   end
 
   def test_attributes_are_being_set_when_initialized_from_habtm_association_with_where_clause
