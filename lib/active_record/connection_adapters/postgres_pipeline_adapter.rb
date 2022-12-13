@@ -53,6 +53,20 @@ module ActiveRecord
         end
       end
 
+      def reset!
+        @lock.synchronize do
+          clear_cache!
+          reset_transaction
+          unless @connection.transaction_status == ::PG::PQTRANS_IDLE
+            flush_pipeline_and_get_sync_result { @connection.send_query_params "ROLLBACK", [] }
+            #  @connection.query "ROLLBACK"
+          end
+          flush_pipeline_and_get_sync_result { @connection.send_query_params "DISCARD ALL", [] }
+          # @connection.query "DISCARD ALL"
+          configure_connection
+        end
+      end
+
       def exec_no_cache(sql, name, binds)
         materialize_transactions
         mark_transaction_written_if_write(sql)
