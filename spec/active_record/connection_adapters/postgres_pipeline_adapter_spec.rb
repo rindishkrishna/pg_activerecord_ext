@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 require 'spec_helper'
 require 'pg_activerecord_ext'
+require 'active_record/pipeline_errors'
 
 RSpec.describe 'ActiveRecord::ConnectionAdapters::PostgresPipelineAdapter' do
   before(:all) do
@@ -57,21 +58,20 @@ RSpec.describe 'ActiveRecord::ConnectionAdapters::PostgresPipelineAdapter' do
 
     it 'should return fatal error on executing multiple SQL statements' do
       pipeline_conn = ActiveRecord::Base.postgres_pipeline_connection(min_messages: 'warning')
-      pg_result = pipeline_conn.execute("select max(id) from postgresql_pipeline_test_table; SHOW TIME ZONE;")
-      expect(pg_result.try(:result_status)).to eq(PG::PGRES_FATAL_ERROR)
+      expect {pipeline_conn.execute("select max(id) from postgresql_pipeline_test_table; SHOW TIME ZONE;")}.to  raise_error(ActiveRecord::MultipleQueryError)
     end
 
-    it 'should insert entity in pipeline mode' do
+    xit 'should insert entity in pipeline mode' do
       assert_equal 1, 2
     end
 
-    it 'should return error if one of the query is incorrect' do
+    xit 'should return error if one of the query is incorrect' do
       assert_equal 1, 2
     end
   end
 
   describe 'Using query' do
-    it 'should assign the results back in the same order, as it was called' do
+    xit 'should assign the results back in the same order, as it was called' do
       assert_equal 1, 2
     end
   end

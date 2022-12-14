@@ -17,11 +17,12 @@ RSpec.describe 'ActiveRecord::Relation' do
     @connection.drop_table(:users, if_exists: true)
     @connection.drop_table(:authors, if_exists: true)
     @connection.create_table(:users, id: :string, limit: 42, force: true) do |t|
-      t.column :description, :string
+      t.column :description, :string, limit: 5
     end
     @connection.create_table :authors do |t|
       t.column :user_id, :string
     end
+    ActiveRecord::Base.logger = ActiveSupport::Logger.new(STDOUT)
     ActiveRecord::Base.establish_connection("adapter" => "postgresql")
     @user_1 = User.create(id: 3)
     @user_2 = User.create(id: 4)
@@ -85,4 +86,12 @@ RSpec.describe 'ActiveRecord::Relation' do
     end
   end
 
+  it 'should fail with exception as the limit of description is set to 5 characters' do
+    user = User.new(id: 90 , description: "hellloo")
+    expect {user.save!}.to  raise_error(ActiveRecord::ValueTooLong)
+
+    ActiveRecord::Base.establish_connection("adapter" => "postgres_pipeline")
+
+    expect {user.save!}.to  raise_error(ActiveRecord::ValueTooLong)
+  end
 end
