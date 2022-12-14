@@ -2,7 +2,7 @@
 require "active_record/errors"
 
 module ActiveRecord
-  class PipelineError < RuntimeError
+  class PipelineError < StandardError
     attr_reader :result
 
     def initialize(message, result = nil)

@@ -277,7 +277,7 @@ module ActiveRecord
 
       private
 
-      MULTIPLE_QUERY        = "42601"
+      MULTIPLE_QUERY = "42601"
       def translate_exception(exception, message:, sql:, binds:)
         return exception unless exception.respond_to?(:result)
 
