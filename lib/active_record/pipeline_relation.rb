@@ -52,10 +52,6 @@ module ActiveRecord
                else
                  exec_main_query
                end
-        # This is to handle a case where load_in_pipeline is not called before trying to read the result
-        if rows.is_a?(ActiveRecord::FutureResult)
-          rows = rows.result
-        end
 
         records = instantiate_records(rows, &block)
         preload_associations(records) unless skip_preloading_value

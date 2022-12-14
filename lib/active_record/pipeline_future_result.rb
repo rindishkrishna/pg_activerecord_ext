@@ -45,12 +45,5 @@ module ActiveRecord
         @result == other
       end
     end
-    def clear; end
-
-    def to_s
-      result if @pending
-      super
-    end
-
   end
 end
