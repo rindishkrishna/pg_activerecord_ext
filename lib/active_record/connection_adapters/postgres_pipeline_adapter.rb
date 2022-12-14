@@ -2,8 +2,11 @@
 
 require 'active_record/connection_adapters/postgresql_adapter'
 require 'active_record/pipeline_future_result'
-require "active_record/connection_adapters/postgres_pipeline/pipeline_database_statements"
-require "active_record/connection_adapters/postgres_pipeline/referential_integrity"
+require 'active_record/connection_adapters/postgres_pipeline/pipeline_database_statements'
+require 'active_record/connection_adapters/postgres_pipeline/referential_integrity'
+require 'active_record/pipeline_errors'
+
+
 module ActiveRecord
   module ConnectionHandling # :nodoc:
     # Establishes a connection to the database that's used by all Active Record objects
@@ -67,6 +70,7 @@ module ActiveRecord
         end
       end
 
+
       def exec_no_cache(sql, name, binds)
         materialize_transactions
         mark_transaction_written_if_write(sql)
@@ -81,7 +85,7 @@ module ActiveRecord
             if is_pipeline_mode?
               #If Pipeline mode return future result objects
               @connection.send_query_params(sql, type_casted_binds)
-              future_result = FutureResult.new(self)
+              future_result = FutureResult.new(self, sql, binds)
               @counter += 1
               @piped_results << future_result
               future_result
@@ -129,7 +133,7 @@ module ActiveRecord
           ActiveSupport::Dependencies.interlock.permit_concurrent_loads do
             if is_pipeline_mode?
               @connection.send_query_params(sql, type_casted_binds)
-              future_result = FutureResult.new(self)
+              future_result = FutureResult.new(self, sql, binds)
               @counter += 1
               @piped_results << future_result
               future_result
@@ -168,19 +172,43 @@ module ActiveRecord
         false
       end
 
+      def connection_in_error?(result_status)
+        [PG::PGRES_FATAL_ERROR].include? result_status
+      end
+
+      def transaction_in_error?(transaction_status)
+        [PG::PQTRANS_INERROR].include? transaction_status
+      end
+
       def initialize_results(required_future_result)
         @connection.pipeline_sync
+        endless_loop = 0
+        activerecord_error = nil
         loop do
           result = @connection.get_result
           if response_received(result)
+            endless_loop = 0
             future_result = @piped_results.shift
-            #  result = (future_result.format == "ar_result") ? build_ar_result(result) : result
             future_result.assign(result)
             break if required_future_result == future_result && !@piped_results.empty?
           elsif pipeline_in_sync?(result) && @piped_results.empty?
             break
+          elsif transaction_in_error?(@connection.transaction_status)
+            break
+          elsif connection_in_error?(result.try(:result_status))
+            # TODO : 1) Flush all the piped results to errors if a previous query in pipeline raised error. What should be the error type?
+            future_result = @piped_results.shift
+            activerecord_error = translate_exception_class(PipelineError.new(result.error_message, result), future_result.sql, future_result.binds)
+            future_result.assign_error(activerecord_error)
+            break
+          elsif (endless_loop % 1000000).zero?
+            @logger.warn "Seems like an endless loop with Pipeline Sync status #{pipeline_in_sync?(result)}, piped results size : #{@piped_results.count}, connection pipeline : #{@connection.inspect} , result :#{result.inspect}"
+            #TODO : Raise Timeout Error OR Flush queries in connection
           end
+          endless_loop += 1
         end
+
+        raise activerecord_error unless activerecord_error.nil?
       end
 
       def execute_and_clear(sql, name, binds, prepare: false, process_later: false , &block)
@@ -210,7 +238,7 @@ module ActiveRecord
         ret
       end
 
-      def exec_query(sql, name = "SQL", binds = [], prepare: false)
+      def exec_query(sql, name = 'SQL', binds = [], prepare: false)
         execute_and_clear(sql, name, binds, prepare: prepare) do |result|
           if !result.is_a?(FutureResult)
             build_ar_result(result)
@@ -248,12 +276,26 @@ module ActiveRecord
       end
 
       private
+
+      MULTIPLE_QUERY        = "42601"
+      def translate_exception(exception, message:, sql:, binds:)
+        return exception unless exception.respond_to?(:result)
+
+        case exception.result.try(:error_field, PG::PG_DIAG_SQLSTATE)
+        when MULTIPLE_QUERY
+          MultipleQueryError.new(message)
+        else
+          super
+        end
+      end
+
       def pipeline_in_sync?(result)
         result.try(:result_status) == PG::PGRES_PIPELINE_SYNC
       end
 
       def response_received(result)
-        [PG::PGRES_TUPLES_OK, PG::PGRES_PIPELINE_ABORTED, PG::PGRES_COMMAND_OK, PG::PGRES_FATAL_ERROR].include?(result.try(:result_status))
+        #TODO : Should PGRES_PIPELINE_ABORTED be also part of connection_in_error? instead of here
+        [PG::PGRES_TUPLES_OK, PG::PGRES_PIPELINE_ABORTED, PG::PGRES_COMMAND_OK].include?(result.try(:result_status))
       end
 
       def build_ar_result(result)
@@ -273,13 +315,22 @@ module ActiveRecord
 
       def get_pipelined_result
         result = nil
+        activerecord_error = nil
         loop do
           interim_result = @connection.get_result
           if response_received(interim_result)
             result = interim_result
+          elsif transaction_in_error?(@connection.transaction_status)
+            break
+          elsif connection_in_error?(interim_result.try(:result_status))
+            activerecord_error = translate_exception_class(PipelineError.new(interim_result.error_message, interim_result), '', [])
+            break
           end
           break if pipeline_in_sync?(interim_result) && result
         end
+
+        raise activerecord_error unless activerecord_error.nil?
+
         result
       end
     end
