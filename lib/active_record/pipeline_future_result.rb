@@ -3,9 +3,9 @@ module ActiveRecord
   class FutureResult # :nodoc:
     attr_accessor :block, :sql, :binds
 
-    KLASSES = [ ActiveRecord::Result, Array , Integer]
+    RESULT_TYPES = [ ActiveRecord::Result, Array , Integer]
 
-    wrapping_methods = (KLASSES.inject([]) { |result, klass| result + klass.instance_methods(false) } + [:dup] - [:==]).uniq
+    wrapping_methods = (RESULT_TYPES.inject([]) { |result, klass| result + klass.instance_methods(false) } + [:dup] - [:==]).uniq
 
     wrapping_methods.each do |method|
       define_method(method) do |*args, &block|

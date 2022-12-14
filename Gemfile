@@ -16,4 +16,6 @@ group :test do
   gem 'simplecov', '~> 0.16'
   gem 'vcr', '~> 6.1'
   gem "pg", "~> 1.1"
+  gem "byebug"
+  gem "sqlite3", "~> 1.4"
 end
