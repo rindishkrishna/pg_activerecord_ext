@@ -5,7 +5,9 @@ module ActiveRecord
 
     RESULT_TYPES = [ ActiveRecord::Result, Array , Integer]
 
-    wrapping_methods = (RESULT_TYPES.inject([]) { |result, klass| result + klass.instance_methods(false) } + [:dup] - [:==]).uniq
+    rejection_methods = [Kernel].inject([]){ |result, klass| result + klass.instance_methods }
+
+    wrapping_methods = (RESULT_TYPES.inject([]) { |result, klass| result + klass.instance_methods } - [:==] - rejection_methods + [:dup, :pluck] ).uniq
 
     wrapping_methods.each do |method|
       define_method(method) do |*args, &block|

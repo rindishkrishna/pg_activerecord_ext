@@ -18,7 +18,7 @@ module ActiveRecord
       conn_params.slice!(*valid_conn_param_keys)
 
       ConnectionAdapters::PostgresPipelineAdapter.new(
-        ConnectionAdapters::PostgreSQLAdapter.new_client(conn_params), logger,
+        ConnectionAdapters::PostgresPipelineAdapter.new_client(conn_params), logger,
         conn_params, config
       )
     end
@@ -34,11 +34,24 @@ module ActiveRecord
       include PostgresPipeline::ReferentialIntegrity
 
       def initialize(connection, logger, conn_params, config)
-        super(connection, logger, conn_params, config)
-        connection.enter_pipeline_mode
-        @is_pipeline_mode = true
         @piped_results = []
         @counter = 0
+        super(connection, logger, conn_params, config)
+        @is_pipeline_mode = true
+      end
+
+      class << self
+        def new_client(conn_params)
+          connection = PG.connect(**conn_params)
+          connection.enter_pipeline_mode
+          connection
+        rescue ::PG::Error => error
+          if conn_params && conn_params[:dbname] && error.message.include?(conn_params[:dbname])
+            raise ActiveRecord::NoDatabaseError
+          else
+            raise ActiveRecord::ConnectionNotEstablished, error.message
+          end
+        end
       end
 
       def is_pipeline_mode?
@@ -207,8 +220,13 @@ module ActiveRecord
           end
           endless_loop += 1
         end
-
-        raise activerecord_error unless activerecord_error.nil?
+        unless activerecord_error.nil?
+          begin
+            raise RuntimeError
+          rescue
+            raise activerecord_error
+          end
+        end
       end
 
       def execute_and_clear(sql, name, binds, prepare: false, process_later: false , &block)
