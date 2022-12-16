@@ -17,5 +17,5 @@ group :test do
   gem 'vcr', '~> 6.1'
   gem "pg", "~> 1.1"
   gem "byebug"
-  gem "sqlite3", "~> 1.4"
+  gem "sqlite3"
 end
