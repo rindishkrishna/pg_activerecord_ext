@@ -25,7 +25,11 @@ module ActiveRecord
       teardown do
         connection.drop_table :testings rescue nil
         ActiveRecord::Migration.verbose = @verbose_was
-        ActiveRecord::SchemaMigration.delete_all rescue nil
+        if current_adapter?(:PostgresPipelineAdapter)
+          ActiveRecord::SchemaMigration.delete_all.result rescue nil
+        else
+          ActiveRecord::SchemaMigration.delete_all rescue nil
+        end
       end
 
       def test_migration_doesnt_remove_named_index
@@ -339,7 +343,11 @@ module LegacyPolymorphicReferenceIndexTestCases
 
   def teardown
     ActiveRecord::Migration.verbose = @verbose_was
-    ActiveRecord::SchemaMigration.delete_all rescue nil
+    if current_adapter?(:PostgresPipelineAdapter)
+      ActiveRecord::SchemaMigration.delete_all.result rescue nil
+    else
+      ActiveRecord::SchemaMigration.delete_all rescue nil
+    end
     connection.drop_table :testings rescue nil
   end
 
@@ -466,7 +474,11 @@ module LegacyPrimaryKeyTestCases
   def teardown
     @migration.migrate(:down) if @migration
     ActiveRecord::Migration.verbose = @verbose_was
-    ActiveRecord::SchemaMigration.delete_all rescue nil
+    if current_adapter?(:PostgresPipelineAdapter)
+      ActiveRecord::SchemaMigration.delete_all.result rescue nil
+    else
+      ActiveRecord::SchemaMigration.delete_all rescue nil
+    end
     LegacyPrimaryKey.reset_column_information
   end
 

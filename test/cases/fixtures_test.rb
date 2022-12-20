@@ -94,14 +94,22 @@ class FixturesTest < ActiveRecord::TestCase
       subscription = ActiveSupport::Notifications.subscribe("sql.active_record", subscriber)
 
       create_fixtures("bulbs", "authors", "computers")
-
       expected_sql = <<~EOS.chop
         INSERT INTO #{ActiveRecord::Base.connection.quote_table_name("bulbs")} .*
         INSERT INTO #{ActiveRecord::Base.connection.quote_table_name("authors")} .*
         INSERT INTO #{ActiveRecord::Base.connection.quote_table_name("computers")} .*
       EOS
-      assert_equal 1, subscriber.events.size
-      assert_match(/#{expected_sql}/, subscriber.events.first)
+
+      if current_adapter?(:PostgresPipelineAdapter)
+        expected_sql = expected_sql.split("\n")
+        assert_equal 3, subscriber.events.size
+        subscriber.events.size.times do|index|
+          assert_match(/#{expected_sql[index]}/, subscriber.events[index])
+        end
+      else
+        assert_equal 1, subscriber.events.size
+        assert_match(/#{expected_sql}/, subscriber.events.first)
+      end
     ensure
       ActiveSupport::Notifications.unsubscribe(subscription)
     end

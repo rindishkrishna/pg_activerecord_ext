@@ -30,6 +30,7 @@ module ActiveRecord
     class PostgresPipelineAdapter < ActiveRecord::ConnectionAdapters::PostgreSQLAdapter
       ADAPTER_NAME = 'PostgresPipeline'
 
+      OID = PostgreSQL::OID
       include PostgresPipeline::DatabaseStatements
       include PostgresPipeline::ReferentialIntegrity
 
@@ -351,6 +352,27 @@ module ActiveRecord
 
         result
       end
+
+      ActiveRecord::Type.add_modifier({ array: true }, OID::Array, adapter: :postgrespipeline)
+      ActiveRecord::Type.add_modifier({ range: true }, OID::Range, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:bit, OID::Bit, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:bit_varying, OID::BitVarying, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:binary, OID::Bytea, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:cidr, OID::Cidr, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:date, OID::Date, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:datetime, OID::DateTime, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:decimal, OID::Decimal, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:enum, OID::Enum, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:hstore, OID::Hstore, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:inet, OID::Inet, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:interval, OID::Interval, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:jsonb, OID::Jsonb, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:money, OID::Money, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:point, OID::Point, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:legacy_point, OID::LegacyPoint, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:uuid, OID::Uuid, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:vector, OID::Vector, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:xml, OID::Xml, adapter: :postgrespipeline)
     end
   end
 end

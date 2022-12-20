@@ -185,6 +185,7 @@ def load_schema
   $stdout = StringIO.new
 
   adapter_name = ActiveRecord::Base.connection.adapter_name.downcase
+  adapter_name = (adapter_name == "postgrespipeline") ? "postgresql" : adapter_name
   adapter_specific_schema_file = SCHEMA_ROOT + "/#{adapter_name}_specific_schema.rb"
 
   load SCHEMA_ROOT + "/schema.rb"
