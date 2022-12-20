@@ -202,8 +202,8 @@ module ActiveRecord
             future_result.assign_error(activerecord_error)
             break
           elsif (endless_loop % 1000000).zero?
-            @logger.warn "Seems like an endless loop with Pipeline Sync status #{pipeline_in_sync?(result)}, piped results size : #{@piped_results.count}, connection pipeline : #{@connection.inspect} , result :#{result.inspect}"
-            #TODO : Raise Timeout Error OR Flush queries in connection
+            @logger.debug "Seems like an endless loop with Pipeline Sync status #{pipeline_in_sync?(result)}, piped results size : #{@piped_results.count}, connection pipeline : #{@connection.inspect} , result :#{result.inspect}"
+            #TODO : Raise error if debug mode is enabled
           end
           endless_loop += 1
         end

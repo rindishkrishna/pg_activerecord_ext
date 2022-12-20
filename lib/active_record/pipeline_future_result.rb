@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 module ActiveRecord
   class FutureResult # :nodoc:
-    attr_accessor :block, :sql, :binds
+    attr_accessor :block, :sql, :binds, :execution_stack, :error
 
     RESULT_TYPES = [ ActiveRecord::Result, Array , Integer]
 
@@ -23,6 +23,12 @@ module ActiveRecord
       @block = nil
       @sql = sql
       @binds = binds
+      @creation_time = Time.now
+      @resolved_time = nil
+      time_in_execution_stack = Benchmark.realtime do
+        @execution_stack = caller(1, 100)
+      end
+      # printf "Time taken in getting execution stack in millisecs %.4f\n", time_in_execution_stack*1000
     end
 
     def result
@@ -37,11 +43,14 @@ module ActiveRecord
       @result = result
       @result = @block.call(result) if @block
       @pending = false
+      @resolved_time = Time.now
     end
 
     def assign_error(error)
       @error = error
+      @resolved_time = Time.now
       @pending = false
+      #TODO : Print stack trace either via logger or by instrumenter
     end
 
     def ==(other)

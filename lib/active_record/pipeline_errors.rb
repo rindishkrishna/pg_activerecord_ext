@@ -13,4 +13,7 @@ module ActiveRecord
 
   class MultipleQueryError < StatementInvalid
   end
+
+  class PriorQueryPipelineError < PipelineError
+  end
 end
