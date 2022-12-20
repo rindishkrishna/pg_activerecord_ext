@@ -5,7 +5,7 @@ require 'active_record/pipeline_future_result'
 require 'active_record/connection_adapters/postgres_pipeline/pipeline_database_statements'
 require 'active_record/connection_adapters/postgres_pipeline/referential_integrity'
 require 'active_record/pipeline_errors'
-
+require 'active_record/migration/pipeline_compatiblity'
 
 module ActiveRecord
   module ConnectionHandling # :nodoc:
@@ -145,7 +145,7 @@ module ActiveRecord
         log(sql, name, binds, type_casted_binds, stmt_key) do
           ActiveSupport::Dependencies.interlock.permit_concurrent_loads do
             if is_pipeline_mode?
-              @connection.send_query_params(sql, type_casted_binds)
+              @connection.send_query_prepared(stmt_key, type_casted_binds)
               future_result = FutureResult.new(self, sql, binds)
               @counter += 1
               @piped_results << future_result

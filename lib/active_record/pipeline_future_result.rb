@@ -7,7 +7,7 @@ module ActiveRecord
 
     rejection_methods = [Kernel].inject([]){ |result, klass| result + klass.instance_methods }
 
-    wrapping_methods = (RESULT_TYPES.inject([]) { |result, klass| result + klass.instance_methods } - [:==] - rejection_methods + [:dup, :pluck] ).uniq
+    wrapping_methods = (RESULT_TYPES.inject([]) { |result, klass| result + klass.instance_methods } - [:==] - rejection_methods + [:dup, :pluck, :is_a?, :instance_of?] ).uniq
 
     wrapping_methods.each do |method|
       define_method(method) do |*args, &block|
@@ -47,7 +47,7 @@ module ActiveRecord
     end
 
     def ==(other)
-      if other.is_a?(ActiveRecord::FutureResult)
+      if other.class == ActiveRecord::FutureResult
         super
       else
         result if @pending
