@@ -195,9 +195,9 @@ module ActiveRecord
 
       def initialize_results(required_future_result)
         @connection.pipeline_sync
+        endless_loop = 0
+        future_result = nil
         begin
-          endless_loop = 0
-          future_result = nil
           loop do
             result = @connection.get_result
             if response_received(result)
@@ -213,13 +213,9 @@ module ActiveRecord
               # TODO : 1) Flush all the piped results to errors if a previous query in pipeline raised error. What should be the error type?
               future_result = @piped_results.shift
               raise PipelineError.new(result.error_message, result)
-              # activerecord_error = translate_exception_class(PipelineError.new(result.error_message, result), future_result.sql, future_result.binds)
-              # future_result.assign_error(activerecord_error)
-              # raise activerecord_error
-              #    break
             elsif (endless_loop % 1000000).zero?
-              @logger.warn "Seems like an endless loop with Pipeline Sync status #{pipeline_in_sync?(result)}, piped results size : #{@piped_results.count}, connection pipeline : #{@connection.inspect} , result :#{result.inspect}"
-              #TODO : Raise Timeout Error OR Flush queries in connection
+              @logger.debug "Seems like an endless loop with Pipeline Sync status #{pipeline_in_sync?(result)}, piped results size : #{@piped_results.count}, connection pipeline : #{@connection.inspect} , result :#{result.inspect}"
+              #TODO : Raise error if debug mode is enabled
             end
             endless_loop += 1
           end
@@ -242,13 +238,13 @@ module ActiveRecord
         end
       end
 
-
       def is_cached_plan_failure?(pgerror)
         pgerror.result.result_error_field(PG::PG_DIAG_SQLSTATE) == FEATURE_NOT_SUPPORTED &&
           pgerror.result.result_error_field(PG::PG_DIAG_SOURCE_FUNCTION) == "RevalidateCachedQuery"
       rescue
         false
       end
+
 
       def execute_and_clear(sql, name, binds, prepare: false, process_later: false , &block)
         if preventing_writes? && write_query?(sql)
