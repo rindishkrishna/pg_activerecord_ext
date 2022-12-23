@@ -26,6 +26,7 @@ I18n.enforce_available_locales = false
 # Connect to the database
 ARTest.connect
 
+ENV["MT_KWARGS_HAC\K"] = "1"
 # Quote "type" if it's a reserved word for the current connection.
 QUOTED_TYPE = ActiveRecord::Base.connection.quote_column_name("type")
 
