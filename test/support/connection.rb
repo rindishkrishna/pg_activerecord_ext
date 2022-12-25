@@ -5,6 +5,7 @@ require "models/college"
 require "models/course"
 require "models/professor"
 require "models/other_dog"
+require_relative  "../../lib/pg_activerecord_ext"
 
 module ARTest
   def self.connection_name

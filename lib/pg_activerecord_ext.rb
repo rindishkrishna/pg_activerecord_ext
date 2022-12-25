@@ -1,6 +1,6 @@
 require 'active_record'
-require 'active_record/migration/pipeline_compatiblity'
 require 'active_record/pipeline_relation'
 require 'active_record/pipeline_future_result'
 require 'active_record/pipeline_querying'
 require 'active_record/connection_adapters/postgres_pipeline_adapter'
+require 'active_record/migration/pipeline_compatiblity'

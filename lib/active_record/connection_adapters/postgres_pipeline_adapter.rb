@@ -5,7 +5,6 @@ require 'active_record/pipeline_future_result'
 require 'active_record/connection_adapters/postgres_pipeline/pipeline_database_statements'
 require 'active_record/connection_adapters/postgres_pipeline/referential_integrity'
 require 'active_record/pipeline_errors'
-require 'active_record/migration/pipeline_compatiblity'
 
 module ActiveRecord
   module ConnectionHandling # :nodoc:

@@ -75,6 +75,7 @@ module ActiveRecord
               []
             else
               relation = join_dependency.apply_column_aliases(relation)
+              @_join_dependency = join_dependency
               connection.select_all(relation.arel, "SQL")
             end
           end
