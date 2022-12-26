@@ -68,6 +68,18 @@ module ActiveRecord
         end
       end
 
+      def reconnect!
+        @lock.synchronize do
+          super
+          @connection.reset
+          # After resetting put the connection back in pipeline
+          @connection.enter_pipeline_mode
+          configure_connection
+        rescue PG::ConnectionBad
+          connect
+        end
+      end
+
       def reset!
         @lock.synchronize do
           clear_cache!
