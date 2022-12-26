@@ -8,6 +8,9 @@ module ActiveRecord
     rejection_methods = [Kernel].inject([]){ |result, klass| result + klass.instance_methods }
 
     wrapping_methods = (RESULT_TYPES.inject([]) { |result, klass| result + klass.instance_methods } - [:==] - rejection_methods + [:dup, :pluck, :is_a?, :instance_of?, :kind_of?] ).uniq
+    # TODO : Fix logic of rejection methods to reject below 2 functions as well
+    wrapping_methods.delete(:__send__)
+    wrapping_methods.delete(:is_a?)
     wrapping_methods.each do |method|
       define_method(method) do |*args, &block|
         result if @pending
@@ -25,10 +28,7 @@ module ActiveRecord
       @binds = binds
       @creation_time = Time.now
       @resolved_time = nil
-      time_in_execution_stack = Benchmark.realtime do
-        @execution_stack = caller(1, 100)
-      end
-      # printf "Time taken in getting execution stack in millisecs %.4f\n", time_in_execution_stack*1000
+      @execution_stack = caller(1, 100)
     end
 
     def result
@@ -50,7 +50,6 @@ module ActiveRecord
       @error = error
       @resolved_time = Time.now
       @pending = false
-      #TODO : Print stack trace either via logger or by instrumenter
     end
 
     def ==(other)
