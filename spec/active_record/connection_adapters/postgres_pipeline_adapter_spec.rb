@@ -3,8 +3,11 @@ require 'spec_helper'
 require 'pg_activerecord_ext'
 require 'active_record/pipeline_errors'
 
+require 'active_record/pipeline_future_result'
+
 RSpec.describe 'ActiveRecord::ConnectionAdapters::PostgresPipelineAdapter' do
   before(:all) do
+    ActiveRecord::Base.logger = ActiveSupport::Logger.new(STDOUT)
     @pipeline_connection = ActiveRecord::Base.postgres_pipeline_connection(min_messages: 'warning')
     @connection = ActiveRecord::Base.postgresql_connection(min_messages: 'warning')
     @connection.exec_query('CREATE TABLE IF NOT EXISTS postgresql_pipeline_test_table (
@@ -67,39 +70,24 @@ RSpec.describe 'ActiveRecord::ConnectionAdapters::PostgresPipelineAdapter' do
       expect(future_result.execution_stack).not_to be_nil
     end
 
-    xit 'should clean the postgres pipeline if prior query in pipeline fails' do
+    it 'should clean the postgres pipeline if prior query in pipeline fails' do
       pipeline_conn = ActiveRecord::Base.postgres_pipeline_connection(min_messages: 'warning')
-      should_raise_error = false
-      begin
+      future_result_first, future_result_second, future_result_third = nil
+      expect {
         future_result_first = pipeline_conn.exec_query("select max(id) from postgresql_pipeline_test_table")
         future_result_second = pipeline_conn.exec_query("select max(id) from postgresql_pipeline_test_table; SHOW TIME ZONE;")
         future_result_third = pipeline_conn.exec_query("select min(id) from postgresql_pipeline_test_table")
         future_result_third.result
-      rescue => e
-        should_raise_error = true
-        expect(future_result_first.error).to be_nil
-        expect(future_result_second.error).not_to be_nil
-        expect(future_result_second.error).to be_a_kind_of(ActiveRecord::MultipleQueryError)
+      }.to  raise_error(ActiveRecord::MultipleQueryError)
 
-        future_result_in_rescue = pipeline_conn.exec_query("select max(id) from postgresql_pipeline_test_table")
-        expect(future_result_third.result).to be_nil
-        expect(future_result_in_rescue.result).to eq 3
+      expect(future_result_second.error).not_to be_nil
+      expect(future_result_second.error).to be_a_kind_of(ActiveRecord::MultipleQueryError)
 
-        expect(future_result_third.error).not_to be_nil
-        expect(future_result_third.error).to be_a_kind_of(ActiveRecord::PriorQueryPipelineError)
-
-        expect(e).to be_a_kind_of(ActiveRecord::MultipleQueryError)
-      end
-
-      expect(should_raise_error.instance_of?).to be_truthy
-    end
-
-    xit 'should insert entity in pipeline mode' do
-      assert_equal 1, 2
-    end
-
-    xit 'should return error if one of the query is incorrect' do
-      assert_equal 1, 2
+      future_result_post_rescue = pipeline_conn.exec_query("select max(id) from postgresql_pipeline_test_table")
+      expect(future_result_post_rescue.result.rows.length).to be(1)
+      expect(future_result_first.result.rows.length).to be(1)
+      expect(future_result_third.result).to be_nil
+      expect(future_result_third.error).to be_a_kind_of(ActiveRecord::PriorQueryPipelineError)
     end
   end
 
