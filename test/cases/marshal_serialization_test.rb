@@ -31,8 +31,10 @@ class MarshalSerializationTest < ActiveRecord::TestCase
     end
 
     def marshal_fixture_path(file_name)
+      connection_name = ActiveRecord::Base.connection.adapter_name
+      connection_name = (connection_name == "PostgresPipeline") ? "PostgreSQL" : connection_name
       File.expand_path(
-        "support/marshal_compatibility_fixtures/#{ActiveRecord::Base.connection.adapter_name}/#{file_name}.dump",
+        "support/marshal_compatibility_fixtures/#{connection_name}/#{file_name}.dump",
         TEST_ROOT
       )
     end

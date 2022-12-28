@@ -68,11 +68,15 @@ class InsertAllTest < ActiveRecord::TestCase
 
   def test_insert_all_raises_on_duplicate_records
     assert_raise ActiveRecord::RecordNotUnique do
-      Book.insert_all! [
+      book = Book.insert_all! [
         { name: "Rework", author_id: 1 },
         { name: "Patterns of Enterprise Application Architecture", author_id: 1 },
         { name: "Agile Web Development with Rails", author_id: 1 },
       ]
+
+      if current_adapter?(:PostgresPipelineAdapter)
+        book.result
+      end
     end
   end
 
@@ -159,8 +163,12 @@ class InsertAllTest < ActiveRecord::TestCase
     skip unless supports_insert_on_duplicate_skip? && supports_insert_conflict_target?
 
     assert_raise ActiveRecord::RecordNotUnique do
-      Book.insert_all [{ id: 1, name: "Agile Web Development with Rails" }],
-        unique_by: :index_books_on_author_id_and_name
+      book = Book.insert_all [{ id: 1, name: "Agile Web Development with Rails" }],
+                             unique_by: :index_books_on_author_id_and_name
+      if current_adapter?(:PostgresPipelineAdapter)
+        book.result
+      end
+
     end
   end
 
@@ -175,7 +183,10 @@ class InsertAllTest < ActiveRecord::TestCase
     end
 
     assert_raise ActiveRecord::RecordNotUnique do
-      Book.upsert_all [{ name: "Rework", author_id: 1 }], unique_by: :isbn
+      book = Book.upsert_all [{ name: "Rework", author_id: 1 }], unique_by: :isbn
+      if current_adapter?(:PostgresPipelineAdapter)
+        book.result
+      end
     end
   end
 

@@ -68,9 +68,14 @@ _SQL
       id SERIAL PRIMARY KEY,
       number integer
     );
+_SQL
+
+    execute <<_SQL
     CREATE TABLE postgresql_partitioned_table ( )
       INHERITS (postgresql_partitioned_table_parent);
+_SQL
 
+  execute <<_SQL
     CREATE OR REPLACE FUNCTION partitioned_insert_trigger()
     RETURNS TRIGGER AS $$
     BEGIN
@@ -79,7 +84,8 @@ _SQL
     END;
     $$
     LANGUAGE plpgsql;
-
+_SQL
+   execute <<_SQL
     CREATE TRIGGER insert_partitioning_trigger
       BEFORE INSERT ON postgresql_partitioned_table_parent
       FOR EACH ROW EXECUTE PROCEDURE partitioned_insert_trigger();

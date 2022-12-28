@@ -6,7 +6,6 @@ require 'active_record/connection_adapters/postgres_pipeline/pipeline_database_s
 require 'active_record/connection_adapters/postgres_pipeline/referential_integrity'
 require 'active_record/pipeline_errors'
 
-
 module ActiveRecord
   module ConnectionHandling # :nodoc:
     # Establishes a connection to the database that's used by all Active Record objects
@@ -18,7 +17,7 @@ module ActiveRecord
       conn_params.slice!(*valid_conn_param_keys)
 
       ConnectionAdapters::PostgresPipelineAdapter.new(
-        ConnectionAdapters::PostgreSQLAdapter.new_client(conn_params), logger,
+        ConnectionAdapters::PostgresPipelineAdapter.new_client(conn_params), logger,
         conn_params, config
       )
     end
@@ -34,11 +33,24 @@ module ActiveRecord
       include PostgresPipeline::ReferentialIntegrity
 
       def initialize(connection, logger, conn_params, config)
-        super(connection, logger, conn_params, config)
-        connection.enter_pipeline_mode
-        @is_pipeline_mode = true
         @piped_results = []
         @counter = 0
+        super(connection, logger, conn_params, config)
+        @is_pipeline_mode = true
+      end
+
+      class << self
+        def new_client(conn_params)
+          connection = PG.connect(**conn_params)
+          connection.enter_pipeline_mode
+          connection
+        rescue ::PG::Error => error
+          if conn_params && conn_params[:dbname] && error.message.include?(conn_params[:dbname])
+            raise ActiveRecord::NoDatabaseError
+          else
+            raise ActiveRecord::ConnectionNotEstablished, error.message
+          end
+        end
       end
 
       def is_pipeline_mode?
@@ -53,6 +65,18 @@ module ActiveRecord
           attribute.lower.eq(attribute.relation.lower(value))
         else
           attribute.eq(value)
+        end
+      end
+
+      def reconnect!
+        @lock.synchronize do
+          super
+          @connection.reset
+          # After resetting put the connection back in pipeline
+          @connection.enter_pipeline_mode
+          configure_connection
+        rescue PG::ConnectionBad
+          connect
         end
       end
 
@@ -132,7 +156,7 @@ module ActiveRecord
         log(sql, name, binds, type_casted_binds, stmt_key) do
           ActiveSupport::Dependencies.interlock.permit_concurrent_loads do
             if is_pipeline_mode?
-              @connection.send_query_params(sql, type_casted_binds)
+              @connection.send_query_prepared(stmt_key, type_casted_binds)
               future_result = FutureResult.new(self, sql, binds)
               @counter += 1
               @piped_results << future_result
@@ -179,6 +203,7 @@ module ActiveRecord
       def request_in_aborted(result_status)
         [PG::PGRES_PIPELINE_ABORTED].include? result_status
       end
+
       def transaction_in_error?(transaction_status)
         [PG::PQTRANS_INERROR].include? transaction_status
       end
@@ -187,37 +212,59 @@ module ActiveRecord
       def initialize_results(required_future_result)
         @connection.pipeline_sync
         time_since_last_result = Time.now
-        activerecord_error = nil
-        loop do
-          result = @connection.get_result
-          if response_received(result)
-            time_since_last_result = Time.now
-            future_result = @piped_results.shift
-            future_result.assign(result)
-            break if required_future_result == future_result && !@piped_results.empty?
-          elsif pipeline_in_sync?(result) && @piped_results.empty?
-            break
-          elsif transaction_in_error?(@connection.transaction_status)
-            @logger.error "Transaction status in error #{@connection.transaction_status}, expecting the status to cleaned up in next pipeline invocation"
-            break
-          elsif request_in_error(result.try(:result_status))
-            future_result = @piped_results.shift
-            activerecord_error = translate_exception_class(PipelineError.new(result.error_message, result), future_result.sql, future_result.binds)
-            future_result.assign_error(activerecord_error)
-            @logger.error "Raising error because future for query #{future_result.sql} called at stack : #{future_result.execution_stack} gave result #{result.try(:result_status)}"
-            break
-          elsif request_in_aborted(result.try(:result_status))
-            future_result = @piped_results.shift
-            future_result.assign_error(PriorQueryPipelineError.new('A previous query has made the pipeline in aborted state', result))
-            @logger.info "Setting PriorQueryPipelineError for sql #{future_result.sql} called at stack : #{future_result.execution_stack}"
-            break if required_future_result == future_result
-          elsif ((Time.now - time_since_last_result) % ENDLESS_LOOP_SECONDS).zero?
-            @logger.debug "Seems like an endless loop with Pipeline Sync status #{pipeline_in_sync?(result)}, piped results size : #{@piped_results.count}, connection pipeline : #{@connection.inspect} , result :#{result.inspect}"
+        future_result = nil
+        begin
+          loop do
+            result = @connection.get_result
+            if response_received(result)
+              time_since_last_result = Time.now
+              future_result = @piped_results.shift
+              future_result.assign(result)
+              break if required_future_result == future_result && !@piped_results.empty?
+            elsif pipeline_in_sync?(result) && @piped_results.empty?
+              break
+            elsif transaction_in_error?(@connection.transaction_status)
+              @logger.error "Transaction status in error #{@connection.transaction_status}, expecting the status to cleaned up in next pipeline invocation"
+              break
+            elsif request_in_error(result.try(:result_status))
+              future_result = @piped_results.shift
+              @logger.error "Raising error because future for query #{future_result.sql} called at stack : #{future_result.execution_stack} gave result #{result.try(:result_status)}"
+              raise PipelineError.new(result.error_message, result)
+            elsif request_in_aborted(result.try(:result_status))
+              future_result = @piped_results.shift
+              future_result.assign_error(PriorQueryPipelineError.new('A previous query has made the pipeline in aborted state', result))
+              @logger.info "Setting PriorQueryPipelineError for sql #{future_result.sql} called at stack : #{future_result.execution_stack}"
+              break if required_future_result == future_result
+            elsif ((Time.now - time_since_last_result) % ENDLESS_LOOP_SECONDS).zero?
+              @logger.debug "Seems like an endless loop with Pipeline Sync status #{pipeline_in_sync?(result)}, piped results size : #{@piped_results.count}, connection pipeline : #{@connection.inspect} , result :#{result.inspect}"
+            end
           end
-        end
+        rescue ActiveRecord::PipelineError => e
+          activerecord_error = translate_exception_class(e, future_result.sql, future_result.binds)
+          future_result.assign_error(activerecord_error)
+          raise activerecord_error unless is_cached_plan_failure?(e)
 
-        raise activerecord_error unless activerecord_error.nil?
+          # Nothing we can do if we are in a transaction because all commands
+          # will raise InFailedSQLTransaction
+          if in_transaction?
+            raise ActiveRecord::PreparedStatementCacheExpired.new(e.message)
+          else
+            @lock.synchronize do
+              # outside of transactions we can simply flush this query and retry
+              @statements.delete sql_key(future_result.sql)
+            end
+          end
+          raise activerecord_error
+        end
       end
+
+      def is_cached_plan_failure?(pgerror)
+        pgerror.result.result_error_field(PG::PG_DIAG_SQLSTATE) == FEATURE_NOT_SUPPORTED &&
+          pgerror.result.result_error_field(PG::PG_DIAG_SOURCE_FUNCTION) == "RevalidateCachedQuery"
+      rescue
+        false
+      end
+
 
       def execute_and_clear(sql, name, binds, prepare: false, process_later: false , &block)
         if preventing_writes? && write_query?(sql)
@@ -322,7 +369,6 @@ module ActiveRecord
 
       def get_pipelined_result
         result = nil
-        activerecord_error = nil
         time_since_last_result = Time.now
 
         loop do
@@ -332,8 +378,7 @@ module ActiveRecord
           elsif transaction_in_error?(@connection.transaction_status)
             break
           elsif request_in_error(interim_result.try(:result_status))
-            activerecord_error = translate_exception_class(PipelineError.new(interim_result.error_message, interim_result), '', [])
-            break
+            raise PipelineError.new(interim_result.error_message, interim_result)
           elsif request_in_aborted(interim_result.try(:result_status))
             @logger.warn 'Not expecting pipeline to go in aborted state, as everything is flushed'
           elsif ((Time.now - time_since_last_result) % ENDLESS_LOOP_SECONDS).zero?
@@ -341,11 +386,29 @@ module ActiveRecord
           end
           break if pipeline_in_sync?(interim_result) && result
         end
-
-        raise activerecord_error unless activerecord_error.nil?
-
         result
       end
+
+      ActiveRecord::Type.add_modifier({ array: true }, OID::Array, adapter: :postgrespipeline)
+      ActiveRecord::Type.add_modifier({ range: true }, OID::Range, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:bit, OID::Bit, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:bit_varying, OID::BitVarying, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:binary, OID::Bytea, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:cidr, OID::Cidr, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:date, OID::Date, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:datetime, OID::DateTime, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:decimal, OID::Decimal, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:enum, OID::Enum, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:hstore, OID::Hstore, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:inet, OID::Inet, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:interval, OID::Interval, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:jsonb, OID::Jsonb, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:money, OID::Money, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:point, OID::Point, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:legacy_point, OID::LegacyPoint, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:uuid, OID::Uuid, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:vector, OID::Vector, adapter: :postgrespipeline)
+      ActiveRecord::Type.register(:xml, OID::Xml, adapter: :postgrespipeline)
     end
   end
 end

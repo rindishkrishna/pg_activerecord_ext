@@ -1106,6 +1106,7 @@ if ActiveRecord::Base.connection.supports_bulk_alter?
       expected_query_count = {
         "Mysql2Adapter"     => 1,
         "PostgreSQLAdapter" => 2, # one for bulk change, one for comment
+        "PostgresPipelineAdapter" => 2,
       }.fetch(classname) {
         raise "need an expected query count for #{classname}"
       }
@@ -1172,6 +1173,7 @@ if ActiveRecord::Base.connection.supports_bulk_alter?
       expected_query_count = {
         "Mysql2Adapter"     => 1, # mysql2 supports creating two indexes using one statement
         "PostgreSQLAdapter" => 3,
+        "PostgresPipelineAdapter" => 3,
       }.fetch(classname) {
         raise "need an expected query count for #{classname}"
       }
@@ -1205,6 +1207,7 @@ if ActiveRecord::Base.connection.supports_bulk_alter?
       expected_query_count = {
         "Mysql2Adapter"     => 1, # mysql2 supports dropping and creating two indexes using one statement
         "PostgreSQLAdapter" => 2,
+        "PostgresPipelineAdapter" => 2,
       }.fetch(classname) {
         raise "need an expected query count for #{classname}"
       }
@@ -1235,6 +1238,7 @@ if ActiveRecord::Base.connection.supports_bulk_alter?
       expected_query_count = {
         "Mysql2Adapter"     => 3, # one query for columns, one query for primary key, one query to do the bulk change
         "PostgreSQLAdapter" => 3, # one query for columns, one for bulk change, one for comment
+        "PostgresPipelineAdapter" => 3,
       }.fetch(classname) {
         raise "need an expected query count for #{classname}"
       }
@@ -1264,6 +1268,7 @@ if ActiveRecord::Base.connection.supports_bulk_alter?
       expected_query_count = {
         "Mysql2Adapter"     => 1, # mysql2 supports dropping and creating two indexes using one statement
         "PostgreSQLAdapter" => 2,
+        "PostgresPipelineAdapter" => 2,
       }.fetch(classname) {
         raise "need an expected query count for #{classname}"
       }

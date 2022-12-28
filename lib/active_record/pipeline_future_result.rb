@@ -10,13 +10,14 @@ module ActiveRecord
     wrapping_methods = (RESULT_TYPES.inject([]) { |result, klass| result + klass.instance_methods } - [:==] - rejection_methods + [:dup, :pluck, :is_a?, :instance_of?, :kind_of?] ).uniq
     # TODO : Fix logic of rejection methods to reject below 2 functions as well
     wrapping_methods.delete(:__send__)
-    wrapping_methods.delete(:is_a?)
+    #wrapping_methods.delete(:is_a?)
     wrapping_methods.each do |method|
       define_method(method) do |*args, &block|
         result if @pending
         @result.send(method, *args, &block)
       end
     end
+
     def initialize(connection_adapter, sql, binds)
       @connection_adapter = connection_adapter
       @result = nil
@@ -53,7 +54,7 @@ module ActiveRecord
     end
 
     def ==(other)
-      if other.is_a?(ActiveRecord::FutureResult)
+      if other.class == ActiveRecord::FutureResult
         super
       else
         result if @pending

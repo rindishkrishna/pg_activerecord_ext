@@ -129,6 +129,7 @@ class BasicsTest < ActiveRecord::TestCase
       "SQLite3Adapter"    => '"',
       "Mysql2Adapter"     => "`",
       "PostgreSQLAdapter" => '"',
+      "PostgresPipelineAdapter" => '"',
       "OracleAdapter"     => '"',
     }.fetch(classname) {
       raise "need a bad char for #{classname}"

@@ -70,7 +70,11 @@ module ActiveRecord
           # But at least we can assert it fails in the client and not before when trying to
           # match the query.
           assert_raises ActiveRecord::StatementInvalid do
-            @connection.select_all("SELECT '\xC8'")
+            if current_adapter?(:PostgresPipelineAdapter)
+              @connection.select_all("SELECT '\xC8'").result
+            else
+              @connection.select_all("SELECT '\xC8'")
+            end
           end
         end
       end

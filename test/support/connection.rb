@@ -5,10 +5,11 @@ require "models/college"
 require "models/course"
 require "models/professor"
 require "models/other_dog"
+require_relative  "../../lib/pg_activerecord_ext"
 
 module ARTest
   def self.connection_name
-    ENV["ARCONN"] || config["default_connection"]
+    ENV["ARCONN"] || "postgres_pipeline"
   end
 
   def self.test_configuration_hashes
