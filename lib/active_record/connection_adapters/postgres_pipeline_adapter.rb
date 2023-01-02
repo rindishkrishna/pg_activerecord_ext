@@ -69,15 +69,9 @@ module ActiveRecord
       end
 
       def reconnect!
-        @lock.synchronize do
-          super
-          @connection.reset
-          # After resetting put the connection back in pipeline
-          @connection.enter_pipeline_mode
-          configure_connection
-        rescue PG::ConnectionBad
-          connect
-        end
+        initialize_results(nil)
+        super
+        @connection.enter_pipeline_mode
       end
 
       def reset!
@@ -240,21 +234,7 @@ module ActiveRecord
             end
           end
         rescue ActiveRecord::PipelineError => e
-          activerecord_error = translate_exception_class(e, future_result.sql, future_result.binds)
-          future_result.assign_error(activerecord_error)
-          raise activerecord_error unless is_cached_plan_failure?(e)
-
-          # Nothing we can do if we are in a transaction because all commands
-          # will raise InFailedSQLTransaction
-          if in_transaction?
-            raise ActiveRecord::PreparedStatementCacheExpired.new(e.message)
-          else
-            @lock.synchronize do
-              # outside of transactions we can simply flush this query and retry
-              @statements.delete sql_key(future_result.sql)
-            end
-          end
-          raise activerecord_error
+          handle_pipeline_error(e, future_result)
         end
       end
 
@@ -365,6 +345,24 @@ module ActiveRecord
           end
         end
         build_result(columns: fields, rows: result.values, column_types: types)
+      end
+
+      def handle_pipeline_error(exception, future_result)
+        activerecord_error = translate_exception_class(exception, future_result.sql, future_result.binds)
+        future_result.assign_error(activerecord_error)
+        raise activerecord_error unless is_cached_plan_failure?(exception)
+
+        # Nothing we can do if we are in a transaction because all commands
+        # will raise InFailedSQLTransaction
+        if in_transaction?
+          raise ActiveRecord::PreparedStatementCacheExpired.new(exception.message)
+        else
+          @lock.synchronize do
+            # outside of transactions we can simply flush this query and retry
+            @statements.delete sql_key(future_result.sql)
+          end
+        end
+        raise activerecord_error
       end
 
       def get_pipelined_result
