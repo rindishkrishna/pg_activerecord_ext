@@ -36,27 +36,13 @@ module ActiveRecord
         @piped_results = []
         @counter = 0
         super(connection, logger, conn_params, config)
+        connection.enter_pipeline_mode
         @is_pipeline_mode = true
-      end
-
-      class << self
-        def new_client(conn_params)
-          connection = PG.connect(**conn_params)
-          connection.enter_pipeline_mode
-          connection
-        rescue ::PG::Error => error
-          if conn_params && conn_params[:dbname] && error.message.include?(conn_params[:dbname])
-            raise ActiveRecord::NoDatabaseError
-          else
-            raise ActiveRecord::ConnectionNotEstablished, error.message
-          end
-        end
       end
 
       def is_pipeline_mode?
         @connection.pipeline_status != PG::PQ_PIPELINE_OFF
       end
-
 
       def case_insensitive_comparison(attribute, value) # :nodoc:
         column = column_for_attribute(attribute)
@@ -69,15 +55,8 @@ module ActiveRecord
       end
 
       def reconnect!
-        @lock.synchronize do
-          super
-          @connection.reset
-          # After resetting put the connection back in pipeline
-          @connection.enter_pipeline_mode
-          configure_connection
-        rescue PG::ConnectionBad
-          connect
-        end
+        super
+        @connection.enter_pipeline_mode
       end
 
       def reset!

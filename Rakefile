@@ -56,11 +56,11 @@ end
       # t.test_files = FileList["test/cases/**/*_test.rb"].reject {
       #   |x| x.include?("/adapters/")
       # }
-      t.test_files = FileList["test/cases/associations/*.rb"]
+      # t.test_files = FileList["test/cases/associations/*.rb"]
 
-      # t.test_files =  FileList["test/cases/**/*_test.rb"].reject {
-      #   |x| x.include?("/adapters/") || x.include?("/encryption/performance")
-      # }
+      t.test_files =  FileList["test/cases/**/*_test.rb"].reject {
+        |x| x.include?("/adapters/") || x.include?("/encryption/performance")
+      }
 
 
       t.warning = true

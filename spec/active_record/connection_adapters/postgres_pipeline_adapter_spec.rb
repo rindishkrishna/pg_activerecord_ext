@@ -18,6 +18,12 @@ RSpec.describe 'ActiveRecord::ConnectionAdapters::PostgresPipelineAdapter' do
     @connection.exec_insert('insert into postgresql_pipeline_test_table (number) VALUES (1)', nil, [], 'id', 'postgresql_pipeline_test_table_id_seq')
   end
 
+  it 'should create pipeline connection with encoding' do
+    pipeline_connection = ActiveRecord::Base.postgres_pipeline_connection({min_messages: 'warning', encoding: 'unicode'})
+    raw_conn = pipeline_connection.instance_variable_get(:@connection)
+    expect(raw_conn.pipeline_status).to eq PG::PQ_PIPELINE_ON
+  end
+
   it 'pipeline mode should be on in connection' do
     raw_conn = @pipeline_connection.instance_variable_get(:@connection)
     expect(raw_conn.pipeline_status).to eq PG::PQ_PIPELINE_ON
