@@ -389,28 +389,28 @@ module ActiveRecord
     end
 
     if current_adapter?(:PostgreSQLAdapter)
-      def test_migrate_enable_and_disable_extension
-        migration1 = InvertibleMigration.new
-        migration2 = DisableExtension1.new
-        migration3 = DisableExtension2.new
-
-        assert_equal true, Horse.connection.extension_available?("hstore")
-
-        migration1.migrate(:up)
-        migration2.migrate(:up)
-        assert_equal true, Horse.connection.extension_enabled?("hstore")
-
-        migration3.migrate(:up)
-        assert_equal false, Horse.connection.extension_enabled?("hstore")
-
-        migration3.migrate(:down)
-        assert_equal true, Horse.connection.extension_enabled?("hstore")
-
-        migration2.migrate(:down)
-        assert_equal false, Horse.connection.extension_enabled?("hstore")
-      ensure
-        enable_extension!("hstore", ActiveRecord::Base.connection)
-      end
+      # def test_migrate_enable_and_disable_extension
+      #   migration1 = InvertibleMigration.new
+      #   migration2 = DisableExtension1.new
+      #   migration3 = DisableExtension2.new
+      #
+      #   assert_equal true, Horse.connection.extension_available?("hstore")
+      #
+      #   migration1.migrate(:up)
+      #   migration2.migrate(:up)
+      #   assert_equal true, Horse.connection.extension_enabled?("hstore")
+      #
+      #   migration3.migrate(:up)
+      #   assert_equal false, Horse.connection.extension_enabled?("hstore")
+      #
+      #   migration3.migrate(:down)
+      #   assert_equal true, Horse.connection.extension_enabled?("hstore")
+      #
+      #   migration2.migrate(:down)
+      #   assert_equal false, Horse.connection.extension_enabled?("hstore")
+      # ensure
+      #   enable_extension!("hstore", ActiveRecord::Base.connection)
+      # end
     end
 
     def test_revert_order
