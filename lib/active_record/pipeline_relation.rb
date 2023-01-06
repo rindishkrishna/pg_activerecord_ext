@@ -63,6 +63,17 @@ module ActiveRecord
       end
     end
 
+    # Returns size of the records.
+    def size
+      loaded? ? records.length : count(:all)
+    end
+
+    # Returns true if there are no records.
+    def empty?
+      return records.empty? if loaded?
+      !exists?
+    end
+
     private
 
     def exec_main_query

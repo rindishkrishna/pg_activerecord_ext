@@ -94,4 +94,14 @@ RSpec.describe 'ActiveRecord::Relation' do
 
     expect {user.save!}.to  raise_error(ActiveRecord::ValueTooLong)
   end
+
+  it "empty? should work in pipeline mode" do
+    ActiveRecord::Base.establish_connection("adapter" => "postgres_pipeline")
+    expect(User.where("id is not null").load_in_pipeline.empty?).to eq(false)
+  end
+
+  it "size should work in pipeline mode" do
+    ActiveRecord::Base.establish_connection("adapter" => "postgres_pipeline")
+    expect(User.where("id is not null").load_in_pipeline.size).to eq(2)
+  end
 end
