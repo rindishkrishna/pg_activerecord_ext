@@ -32,7 +32,7 @@ module ActiveRecord
 
         result = exec_main_query
 
-        if result.is_a?(Array)
+        if result.class == Array
           @records = result
         else
           @future_result = result
