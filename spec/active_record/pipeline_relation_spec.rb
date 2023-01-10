@@ -104,4 +104,40 @@ RSpec.describe 'ActiveRecord::Relation' do
     ActiveRecord::Base.establish_connection("adapter" => "postgres_pipeline")
     expect(User.where("id is not null").load_in_pipeline.size).to eq(2)
   end
+
+  context "Handling retry scenarios" do
+    before(:each) do
+      @connection.add_column :authors, :baz, :string
+    end
+    after(:each) do
+      @connection.remove_column :authors, :baz
+    end
+    it 'should retry when prepare statement cache is expired' do
+      ActiveRecord::Base.establish_connection("adapter" => "postgres_pipeline")
+      ActiveSupport::Notifications.subscribed( @callback, "sql.active_record") do
+        authors = Author.where(user_id: 3).load_in_pipeline
+        expect(authors.first).to eq( @author)
+      end
+    end
+
+    it 'should reload relation when its failure is due to previously submitted query' do
+      ActiveRecord::Base.establish_connection("adapter" => "postgres_pipeline")
+      ActiveSupport::Notifications.subscribed( @callback, "sql.active_record") do
+        authors = Author.where(user_id: 3).load_in_pipeline
+        user = User.where("id  = '3'").load_in_pipeline
+        expect(authors.first).to eq( @author)
+        expect(user).to eq([@user_1])
+      end
+    end
+  end
+
+  it "should set future_result instance when load_in_pipeline is called" do
+    ActiveRecord::Base.establish_connection("adapter" => "postgres_pipeline")
+    adapter = ActiveRecord::Base.connection
+    ActiveSupport::Notifications.subscribed( @callback, "sql.active_record") do
+      expect(adapter).not_to receive(:initialize_results)
+      users = User.where("id is not null").load_in_pipeline
+      expect(users.instance_variable_get(:@future_result).class).to eq(ActiveRecord::FutureResult)
+    end
+  end
 end
