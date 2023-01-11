@@ -32,7 +32,7 @@ module ActiveRecord
 
         result = exec_main_query
 
-        if result.is_a?(Array)
+        if result.class == Array
           @records = result
         else
           @future_result = result
@@ -61,6 +61,17 @@ module ActiveRecord
 
         records
       end
+    end
+
+    # Returns size of the records.
+    def size
+      loaded? ? records.length : count(:all)
+    end
+
+    # Returns true if there are no records.
+    def empty?
+      return records.empty? if loaded?
+      !exists?
     end
 
     private

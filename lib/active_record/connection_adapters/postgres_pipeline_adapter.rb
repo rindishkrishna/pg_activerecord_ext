@@ -55,8 +55,14 @@ module ActiveRecord
       end
 
       def reconnect!
+        initialize_results(nil) if active? && @piped_results.count > 0
         super
         @connection.enter_pipeline_mode
+      end
+
+      def disconnect!
+        initialize_results(nil) if active? && @piped_results.count > 0
+        super
       end
 
       def reset!
@@ -200,51 +206,39 @@ module ActiveRecord
 
       ENDLESS_LOOP_SECONDS = 20
       def initialize_results(required_future_result)
-        @connection.pipeline_sync
-        time_since_last_result = Time.now
-        future_result = nil
-        begin
-          loop do
-            result = @connection.get_result
-            if response_received(result)
-              time_since_last_result = Time.now
-              future_result = @piped_results.shift
-              future_result.assign(result)
-              break if required_future_result == future_result && !@piped_results.empty?
-            elsif pipeline_in_sync?(result) && @piped_results.empty?
-              break
-            elsif transaction_in_error?(@connection.transaction_status)
-              @logger.error "Transaction status in error #{@connection.transaction_status}, expecting the status to cleaned up in next pipeline invocation"
-              break
-            elsif request_in_error(result.try(:result_status))
-              future_result = @piped_results.shift
-              @logger.error "Raising error because future for query #{future_result.sql} called at stack : #{future_result.execution_stack} gave result #{result.try(:result_status)}"
-              raise PipelineError.new(result.error_message, result)
-            elsif request_in_aborted(result.try(:result_status))
-              future_result = @piped_results.shift
-              future_result.assign_error(PriorQueryPipelineError.new('A previous query has made the pipeline in aborted state', result))
-              @logger.info "Setting PriorQueryPipelineError for sql #{future_result.sql} called at stack : #{future_result.execution_stack}"
-              break if required_future_result == future_result
-            elsif ((Time.now - time_since_last_result) % ENDLESS_LOOP_SECONDS).zero?
-              @logger.debug "Seems like an endless loop with Pipeline Sync status #{pipeline_in_sync?(result)}, piped results size : #{@piped_results.count}, connection pipeline : #{@connection.inspect} , result :#{result.inspect}"
+        @lock.synchronize do
+          @connection.pipeline_sync
+          time_since_last_result = Time.now
+          future_result = nil
+          begin
+            loop do
+              result = @connection.get_result
+              if response_received(result)
+                time_since_last_result = Time.now
+                future_result = @piped_results.shift
+                future_result.assign(result)
+                break if required_future_result == future_result && !@piped_results.empty?
+              elsif pipeline_in_sync?(result) && @piped_results.empty?
+                break
+              elsif transaction_in_error?(@connection.transaction_status)
+                @logger.error "Transaction status in error #{@connection.transaction_status}, expecting the status to cleaned up in next pipeline invocation"
+                break
+              elsif request_in_error(result.try(:result_status))
+                future_result = @piped_results.shift
+                @logger.error "Raising error because future for query #{future_result.sql} called at stack : #{future_result.execution_stack} gave result #{result.try(:result_status)}"
+                raise PipelineError.new(result.error_message, result)
+              elsif request_in_aborted(result.try(:result_status))
+                future_result = @piped_results.shift
+                future_result.assign_error(PriorQueryPipelineError.new('A previous query has made the pipeline in aborted state', result))
+                @logger.info "Setting PriorQueryPipelineError for sql #{future_result.sql} called at stack : #{future_result.execution_stack}"
+                break if required_future_result == future_result
+              elsif (Time.now - time_since_last_result).to_i > ENDLESS_LOOP_SECONDS
+                @logger.debug "Seems like an endless loop with Pipeline Sync status #{pipeline_in_sync?(result)}, piped results size : #{@piped_results.count}, connection pipeline : #{@connection.inspect} , result :#{result.inspect}"
+              end
             end
+          rescue ActiveRecord::PipelineError => e
+            handle_pipeline_error(e, future_result)
           end
-        rescue ActiveRecord::PipelineError => e
-          activerecord_error = translate_exception_class(e, future_result.sql, future_result.binds)
-          future_result.assign_error(activerecord_error)
-          raise activerecord_error unless is_cached_plan_failure?(e)
-
-          # Nothing we can do if we are in a transaction because all commands
-          # will raise InFailedSQLTransaction
-          if in_transaction?
-            raise ActiveRecord::PreparedStatementCacheExpired.new(e.message)
-          else
-            @lock.synchronize do
-              # outside of transactions we can simply flush this query and retry
-              @statements.delete sql_key(future_result.sql)
-            end
-          end
-          raise activerecord_error
         end
       end
 
@@ -314,10 +308,12 @@ module ActiveRecord
       end
 
       def flush_pipeline_and_get_sync_result
-        initialize_results(nil)
-        yield
-        @connection.pipeline_sync
-        get_pipelined_result
+        @lock.synchronize do
+          initialize_results(nil)
+          yield
+          @connection.pipeline_sync
+          get_pipelined_result
+        end
       end
 
       private
@@ -355,6 +351,24 @@ module ActiveRecord
           end
         end
         build_result(columns: fields, rows: result.values, column_types: types)
+      end
+
+      def handle_pipeline_error(exception, future_result)
+        activerecord_error = translate_exception_class(exception, future_result.sql, future_result.binds)
+        future_result.assign_error(activerecord_error)
+        raise activerecord_error unless is_cached_plan_failure?(exception)
+
+        # Nothing we can do if we are in a transaction because all commands
+        # will raise InFailedSQLTransaction
+        if in_transaction?
+          raise ActiveRecord::PreparedStatementCacheExpired.new(exception.message)
+        else
+          @lock.synchronize do
+            # outside of transactions we can simply flush this query and retry
+            @statements.delete sql_key(future_result.sql)
+          end
+        end
+        raise activerecord_error
       end
 
       def get_pipelined_result

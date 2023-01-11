@@ -429,33 +429,33 @@ class SerializedAttributeTest < ActiveRecord::TestCase
     assert_not_predicate topic, :changed?
   end
 
-  # def test_serialized_attribute_works_under_concurrent_initial_access
-  #   model = Class.new(Topic)
-  #
-  #   topic = model.create!
-  #   topic.update group: "1"
-  #
-  #   model.serialize :group, JSON
-  #   model.reset_column_information
-  #
-  #   # This isn't strictly necessary for the test, but a little bit of
-  #   # knowledge of internals allows us to make failures far more likely.
-  #   model.define_singleton_method(:define_attribute) do |*args, **options|
-  #     Thread.pass
-  #     super(*args, **options)
-  #   end
-  #
-  #   threads = 4.times.map do
-  #     Thread.new do
-  #       topic.reload.group
-  #     end
-  #   end
-  #
-  #   # All the threads should retrieve the value knowing it is JSON, and
-  #   # thus decode it. If this fails, some threads will instead see the
-  #   # raw string ("1"), or raise an exception.
-  #   assert_equal [1] * threads.size, threads.map(&:value)
-  # end
+  def test_serialized_attribute_works_under_concurrent_initial_access
+    model = Class.new(Topic)
+
+    topic = model.create!
+    topic.update group: "1"
+
+    model.serialize :group, JSON
+    model.reset_column_information
+
+    # This isn't strictly necessary for the test, but a little bit of
+    # knowledge of internals allows us to make failures far more likely.
+    model.define_singleton_method(:define_attribute) do |*args, **options|
+      Thread.pass
+      super(*args, **options)
+    end
+
+    threads = 4.times.map do
+      Thread.new do
+        topic.reload.group
+      end
+    end
+
+    # All the threads should retrieve the value knowing it is JSON, and
+    # thus decode it. If this fails, some threads will instead see the
+    # raw string ("1"), or raise an exception.
+    assert_equal [1] * threads.size, threads.map(&:value)
+  end
 end
 
 
