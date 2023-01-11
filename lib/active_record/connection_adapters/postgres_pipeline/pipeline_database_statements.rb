@@ -21,7 +21,7 @@ module ActiveRecord
           materialize_transactions
           mark_transaction_written_if_write(sql)
 
-          log(sql, name) do
+          log(is_pipeline_mode? ? "#{sql} [SYNC]" : sql, name) do
             ActiveSupport::Dependencies.interlock.permit_concurrent_loads do
               if is_pipeline_mode?
                 flush_pipeline_and_get_sync_result { @connection.send_query_params(sql, []) }
@@ -36,7 +36,7 @@ module ActiveRecord
           materialize_transactions
           mark_transaction_written_if_write(sql)
 
-          log(sql, name) do
+          log(is_pipeline_mode? ? "#{sql} [SYNC]" : sql, name) do
             ActiveSupport::Dependencies.interlock.permit_concurrent_loads do
               if is_pipeline_mode?
                 result = flush_pipeline_and_get_sync_result { @connection.send_query_params(sql, []) }

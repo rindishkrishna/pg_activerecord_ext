@@ -105,6 +105,17 @@ module ActiveRecord
         end
       end
 
+      def pipeline_fetch(future_result)
+        @instrumenter.instrument('sql.active_record', sql: "FETCHING PIPELINE RESULT TILL #{future_result.sql}",
+                                                      name: 'PIPELINE_FETCH',
+                                                      binds: [],
+                                                      type_casted_binds: [],
+                                                      statement_name: nil,
+                                                      connection: self) do
+          initialize_results(future_result)
+        end
+      end
+
       def prepare_statement(sql, binds)
         @lock.synchronize do
           sql_key = sql_key(sql)
@@ -233,7 +244,7 @@ module ActiveRecord
 
       def is_cached_plan_failure?(pgerror)
         pgerror.result.result_error_field(PG::PG_DIAG_SQLSTATE) == FEATURE_NOT_SUPPORTED &&
-          pgerror.result.result_error_field(PG::PG_DIAG_SOURCE_FUNCTION) == "RevalidateCachedQuery"
+          pgerror.result.result_error_field(PG::PG_DIAG_SOURCE_FUNCTION) == 'RevalidateCachedQuery'
       rescue
         false
       end

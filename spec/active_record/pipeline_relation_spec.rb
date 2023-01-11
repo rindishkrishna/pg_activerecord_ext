@@ -62,7 +62,7 @@ RSpec.describe 'ActiveRecord::Relation' do
     ActiveRecord::Base.establish_connection("adapter" => "postgres_pipeline")
     @sql = []
     track_sql_queries = lambda do |*args|
-      unless args.last[:name] == "SCHEMA"
+      unless args.last[:name] == "SCHEMA" || args.last[:name] == "PIPELINE_FETCH"
         Logger.new(STDOUT).debug("#{color} #{args.last[:sql]} #{CLEAR}" )
         @sql << args.last[:sql]
       end

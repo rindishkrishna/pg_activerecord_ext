@@ -36,7 +36,7 @@ module ActiveRecord
       # Wait till timeout until pending is false
       return @result unless @pending
 
-      @connection_adapter.initialize_results(self)
+      @connection_adapter.pipeline_fetch(self)
       @result
     end
 
