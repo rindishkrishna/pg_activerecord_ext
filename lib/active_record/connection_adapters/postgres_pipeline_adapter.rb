@@ -94,6 +94,7 @@ module ActiveRecord
             if is_pipeline_mode?
               #If Pipeline mode return future result objects
               @connection.send_query_params(sql, type_casted_binds)
+              @connection.pipeline_sync
               future_result = FutureResult.new(self, sql, binds)
               @counter += 1
               @piped_results << future_result
@@ -153,6 +154,7 @@ module ActiveRecord
           ActiveSupport::Dependencies.interlock.permit_concurrent_loads do
             if is_pipeline_mode?
               @connection.send_query_prepared(stmt_key, type_casted_binds)
+              @connection.pipeline_sync
               future_result = FutureResult.new(self, sql, binds)
               @counter += 1
               @piped_results << future_result
